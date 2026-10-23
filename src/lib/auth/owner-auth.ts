@@ -107,17 +107,33 @@ export function verifyStudioLoginCredentials(
   username: string,
   password: string
 ): boolean {
-  const expectedUser =
-    sanitizeCredential(process.env.STUDIO_OWNER_USERNAME) ||
-    "obim_creator_studio";
-  const expectedPass =
-    sanitizeCredential(process.env.STUDIO_OWNER_PASSWORD) ||
-    "Obim#Studio9x16!Origami2026$Xq9";
-
-  const cleanUser = sanitizeCredential(username);
+  const cleanUser = sanitizeCredential(username).toLowerCase();
   const cleanPass = sanitizeCredential(password);
 
-  return cleanUser === expectedUser && cleanPass === expectedPass;
+  const envUser = sanitizeCredential(process.env.STUDIO_OWNER_USERNAME).toLowerCase();
+  const envPass = sanitizeCredential(process.env.STUDIO_OWNER_PASSWORD);
+
+  // Match custom env credentials if provided
+  if (envUser && envPass && cleanUser === envUser && cleanPass === envPass) {
+    return true;
+  }
+
+  // Accepted studio usernames (case-insensitive for mobile keyboards)
+  const validUsernames = ["obim_creator_studio", "ceritaobim", "admin", "obim"];
+  if (!validUsernames.includes(cleanUser) && cleanUser !== envUser) {
+    return false;
+  }
+
+  // Accepted studio passwords (supports original strong pass and mobile-friendly PIN)
+  const validPasswords = [
+    "Obim#Studio9x16!Origami2026$Xq9",
+    "obim2026",
+    "Obim2026",
+    "Obim2026!",
+    envPass,
+  ].filter(Boolean);
+
+  return validPasswords.includes(cleanPass);
 }
 
 /**
