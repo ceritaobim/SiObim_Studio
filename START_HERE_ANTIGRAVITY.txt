@@ -1,0 +1,20 @@
+START PROMPT — CERITAOBIM STUDIO
+
+Baca AGENTS.md dan seluruh dokumen di folder docs sebelum melakukan perubahan.
+
+Jangan langsung membangun seluruh aplikasi. Mulai dari Milestone 0 di docs/IMPLEMENTATION_PLAN.md saja.
+
+Sebelum coding:
+1. Ringkas pemahaman produk dari PRD.
+2. Periksa dokumen arsitektur dan open decisions.
+3. Usulkan struktur folder dan dependensi yang akan dipakai.
+4. Sebutkan asumsi atau risiko yang perlu dikonfirmasi, terutama provider video dan background worker.
+5. Setelah itu implementasikan hanya scaffold, app shell responsif, halaman placeholder, konfigurasi TypeScript/lint/test, dan dokumentasi setup lokal.
+
+Jangan mengklaim Google Flow sudah memiliki integrasi API. Jangan mengotomatisasi perpindahan akun Google. Jangan memasukkan API key nyata ke source code.
+
+Setelah selesai:
+- jalankan lint, typecheck, dan test yang tersedia;
+- cek tampilan pada lebar 360px dan desktop;
+- laporkan file yang dibuat/diubah, hasil tes, cara menjalankan aplikasi, dan blocker;
+- berhenti setelah Milestone 0. Tunggu instruksi berikutnya sebelum lanjut.

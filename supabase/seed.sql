@@ -1,0 +1,116 @@
+-- =============================================================================
+-- CeritaObim Studio — Seed / Demo Data (Clearly Labeled as DEMO)
+-- =============================================================================
+
+insert into public.project_settings (
+  owner_id,
+  project_name,
+  channel_name,
+  language,
+  timezone,
+  niche,
+  tone_guide,
+  visual_style_guide,
+  character_description,
+  default_duration_seconds,
+  target_scene_seconds_min,
+  target_scene_seconds_max,
+  output_aspect_ratio,
+  output_width,
+  output_height,
+  no_subtitles,
+  weekly_video_target,
+  daily_budget_limit,
+  monthly_budget_limit,
+  max_scene_retries,
+  video_generation_mode,
+  target_platforms
+)
+values (
+  '00000000-0000-0000-0000-000000000001',
+  'CeritaObim Studio',
+  'cerita_obim',
+  'id-ID',
+  'Asia/Makassar',
+  'Fakta unik, sains populer, sejarah singkat, dan keingintahuan sehari-hari',
+  'Hangat, penasaran, jelas, bercerita cepat tanpa bertele-tele, bahasa Indonesia kasual-edukatif.',
+  'Handmade origami paper stop-motion; setiap karakter, objek, properti, dan latar belakang tampak terbuat dari kertas lipat; tanpa manusia/objek fotorealistik; tanpa subtitle atau teks di dalam video.',
+  'Obim: karakter anak penasaran dari lipatan kertas origami warna kuning hangat dan jaket biru lipat doff, proporsi konsisten di setiap scene.',
+  70,
+  6,
+  10,
+  '9:16',
+  1080,
+  1920,
+  true,
+  2,
+  10.00,
+  50.00,
+  2,
+  'semi_manual_flow',
+  '["tiktok", "youtube", "instagram"]'::jsonb
+)
+on conflict (owner_id) do nothing;
+
+insert into public.content_items (
+  owner_id,
+  content_code,
+  title,
+  category,
+  topic,
+  hook,
+  narration,
+  cta,
+  tiktok_caption,
+  youtube_description,
+  instagram_caption,
+  notes,
+  target_duration_seconds,
+  factual_claims,
+  source_urls,
+  verification_status,
+  content_status,
+  is_demo
+)
+values
+(
+  '00000000-0000-0000-0000-000000000001',
+  'CO-2026-001',
+  '[CONTOH DEMO] Mengapa Kucing Selalu Mendarat dengan Kakinya?',
+  'Sains & Biologi',
+  'Refleks meluruskan tubuh kucing (cat righting reflex) saat jatuh',
+  'Pernah bingung kenapa kucing yang jatuh dari tempat tinggi hampir selalu mendarat dengan empat kakinya?',
+  'Saat kucing terjatuh, sistem keseimbangan di telinga dalamnya langsung mendeteksi arah gravitasi dalam hitungan milidetik. Kucing memutar kepala lebih dulu, lalu tulang belakangnya yang sangat lentur mengikuti putaran kaki depan dan kaki belakang secara bergantian. Uniknya, kucing tidak punya tulang selangka kaku seperti manusia, sehingga tubuhnya bisa berputar seperti pegas kertas lipat di udara sebelum merentangkan kaki untuk meredam benturan.',
+  'Kucingmu di rumah pernah melakukan akrobat aneh apa? Ceritakan di komentar!',
+  'Rahasia refleks tubuh kucing saat jatuh di udara! #ceritaobim #faktakucing #sainsunik #origamistopmotion',
+  'Penjelasan singkat tentang cat righting reflex dalam visual stop-motion origami kertas lipat.',
+  'Kenapa kucing selalu mendarat dengan kaki? Ini rahasia tulang belakang dan telinga dalamnya! #ceritaobim #faktaunik',
+  'DATA CONTOH / SEED DEMO — Dapat diarsipkan atau digunakan untuk menguji deteksi duplikasi topik.',
+  70,
+  '["Kucing memiliki cat righting reflex yang berkembang sejak usia beberapa minggu.", "Kucing memiliki tulang belakang fleksibel dan tulang selangka tereduksi."]'::jsonb,
+  '["https://en.wikipedia.org/wiki/Cat_righting_reflex"]'::jsonb,
+  'verified',
+  'ready_to_publish',
+  true
+),
+(
+  '00000000-0000-0000-0000-000000000001',
+  'CO-2026-002',
+  '[CONTOH DEMO] Bagaimana Teknik Lipatan Origami Dipakai di Teleskop Luar Angkasa?',
+  'Teknologi & Antariksa',
+  'Penerapan lipatan origami Miura-ori pada panel surya dan cermin satelit antariksa',
+  'Siapa sangka seni melipat kertas origami ternyata menyelamatkan peluncuran satelit raksasa ke luar angkasa?',
+  'Roket peluncur memiliki ruang kargo yang sangat sempit, padahal satelit membutuhkan panel surya dan cermin yang sangat lebar saat tiba di orbit. Insinyur antariksa menggunakan pola lipatan origami bernama Miura-ori agar lembaran raksasa bisa dilipat rapat lalu dibuka hanya dengan satu tarikan mekanis di ruang hampa udara.',
+  'Menurutmu benda apa lagi yang terinspirasi dari lipatan kertas? Tulis di komentar!',
+  'Dari kertas lipat ke luar angkasa! Begini cara NASA dan JAXA memakai prinsip origami. #ceritaobim #faktasains #antariksa',
+  'Bagaimana pola lipatan Miura-ori membantu pengiriman panel surya satelit ke orbit.',
+  'Seni melipat kertas yang dipakai di luar angkasa! #ceritaobim #teknologi #origami',
+  'DATA CONTOH / SEED DEMO — Klaim kedua sengaja belum diberi URL sumber untuk contoh status needs_verification.',
+  72,
+  '["Pola lipatan Miura-ori ditemukan oleh astrofisikawan Jepang Koryo Miura untuk mengemas panel surya ruang angkasa."]'::jsonb,
+  '[]'::jsonb,
+  'needs_verification',
+  'planned',
+  true
+)
+on conflict (owner_id, content_code) do nothing;

@@ -1,0 +1,134 @@
+import { cookies } from "next/headers";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_OWNER_ID } from "@/lib/config/env";
+
+export const OWNER_SESSION_COOKIE = "co_studio_owner_session";
+
+export interface AuthOwnerContext {
+  ownerId: string;
+  email?: string;
+  displayName: string;
+  authMode: "supabase_jwt" | "owner_passcode" | "local_single_owner";
+  authorized: boolean;
+}
+
+export function createServerSupabaseAdminClient(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    return null;
+  }
+
+  return createClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
+/**
+ * Resolves and authorizes the current request's owner identity on the server.
+ * Supports:
+ * 1. Explicit ownerId override in unit tests.
+ * 2. STUDIO_OWNER_PASSCODE check via cookie or x-owner-passcode header when configured.
+ * 3. Default single-owner mode (`DEFAULT_OWNER_ID`) for MVP.
+ */
+export async function getAuthorizedOwner(options?: {
+  requestHeaders?: Headers;
+  overrideOwnerId?: string;
+}): Promise<AuthOwnerContext> {
+  if (options?.overrideOwnerId) {
+    return {
+      ownerId: options.overrideOwnerId,
+      displayName: "Owner cerita_obim",
+      authMode: "local_single_owner",
+      authorized: true,
+    };
+  }
+
+  const requiredPasscode = process.env.STUDIO_OWNER_PASSCODE?.trim();
+  if (requiredPasscode) {
+    const headerPasscode = options?.requestHeaders
+      ?.get("x-owner-passcode")
+      ?.trim();
+    let cookiePasscode: string | undefined;
+    try {
+      const cookieStore = await cookies();
+      cookiePasscode = cookieStore.get(OWNER_SESSION_COOKIE)?.value;
+    } catch {
+      // cookies() may be called outside request context in tests
+    }
+
+    const authorized =
+      headerPasscode === requiredPasscode ||
+      cookiePasscode === requiredPasscode;
+
+    return {
+      ownerId: DEFAULT_OWNER_ID,
+      displayName: "Creator cerita_obim",
+      authMode: "owner_passcode",
+      authorized,
+    };
+  }
+
+  return {
+    ownerId: DEFAULT_OWNER_ID,
+    displayName: "Creator cerita_obim",
+    authMode: "local_single_owner",
+    authorized: true,
+  };
+}
+
+export const STUDIO_DEFAULT_USERNAME =
+  process.env.STUDIO_OWNER_USERNAME || "obim_creator_studio";
+
+export const STUDIO_DEFAULT_PASSWORD =
+  process.env.STUDIO_OWNER_PASSWORD || "Obim#Studio9x16!Origami2026$Xq9";
+
+export const STUDIO_SESSION_TOKEN = "co_verified_owner_365d_token_v1";
+
+export function verifyStudioLoginCredentials(
+  username: string,
+  password: string
+): boolean {
+  return (
+    username.trim() === STUDIO_DEFAULT_USERNAME &&
+    password === STUDIO_DEFAULT_PASSWORD
+  );
+}
+
+/**
+ * Enforces owner-level row scoping: verifies that a target record belongs to the authenticated owner.
+ */
+export function assertOwnerAccess(
+  recordOwnerId: string,
+  authenticatedOwnerId: string
+): void {
+  if (
+    !recordOwnerId ||
+    !authenticatedOwnerId ||
+    recordOwnerId !== authenticatedOwnerId
+  ) {
+    throw new Error(
+      "FORBIDDEN_OWNER_MISMATCH: Akses ditolak untuk data milik pengguna lain."
+    );
+  }
+}
+
+export async function resolveAuthenticatedOwner(
+  request?: Request
+): Promise<AuthOwnerContext> {
+  const ctx = await getAuthorizedOwner({
+    requestHeaders: request?.headers,
+  });
+  if (!ctx.authorized) {
+    throw new Error("UNAUTHORIZED: Passcode pemilik studio tidak valid.");
+  }
+  return ctx;
+}
+
+
