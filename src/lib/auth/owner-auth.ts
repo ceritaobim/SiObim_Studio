@@ -83,6 +83,18 @@ export async function getAuthorizedOwner(options?: {
   };
 }
 
+function sanitizeCredential(val: string | undefined | null): string {
+  if (!val) return "";
+  let s = String(val).trim();
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
 export const STUDIO_DEFAULT_USERNAME =
   process.env.STUDIO_OWNER_USERNAME || "obim_creator_studio";
 
@@ -95,10 +107,17 @@ export function verifyStudioLoginCredentials(
   username: string,
   password: string
 ): boolean {
-  return (
-    username.trim() === STUDIO_DEFAULT_USERNAME &&
-    password === STUDIO_DEFAULT_PASSWORD
-  );
+  const expectedUser =
+    sanitizeCredential(process.env.STUDIO_OWNER_USERNAME) ||
+    "obim_creator_studio";
+  const expectedPass =
+    sanitizeCredential(process.env.STUDIO_OWNER_PASSWORD) ||
+    "Obim#Studio9x16!Origami2026$Xq9";
+
+  const cleanUser = sanitizeCredential(username);
+  const cleanPass = sanitizeCredential(password);
+
+  return cleanUser === expectedUser && cleanPass === expectedPass;
 }
 
 /**
