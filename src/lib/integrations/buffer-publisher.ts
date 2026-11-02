@@ -137,18 +137,31 @@ export async function publishContentToBuffer(
 
   // 4. Construct rich post text with title, description, and hashtags
   const defaultHashtags = "#CeritaObim #FaktaUnik #SainsSeru #Origami #Animasi #FYP";
-  const postText =
-    customCaption?.trim() ||
+  const defaultCaption =
     `${content.title}\n\n${content.hook || ""}\n\n${defaultHashtags}`.trim();
 
   // 5. Post to each matching channel
   const results: BufferPostResult[] = [];
   for (const ch of matchingChannels) {
     try {
+      let channelText = customCaption?.trim();
+      if (!channelText) {
+        if (ch.service === "tiktok" && content.tiktokCaption?.trim()) {
+          channelText = content.tiktokCaption.trim();
+        } else if (ch.service === "instagram" && content.instagramCaption?.trim()) {
+          channelText = content.instagramCaption.trim();
+        } else if (ch.service === "youtube" && content.youtubeDescription?.trim()) {
+          channelText = content.youtubeDescription.trim();
+        } else {
+          channelText = defaultCaption;
+        }
+      }
+
       const res = await publishVideoToBufferChannel({
         channelId: ch.id,
         service: ch.service,
-        text: postText,
+        title: content.title,
+        text: channelText,
         videoUrl: publicVideoUrl,
         dueAt: scheduledTime,
         publishNow: params.publishNow,

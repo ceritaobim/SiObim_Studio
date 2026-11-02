@@ -39,6 +39,7 @@ export async function GET(request: Request) {
 
   const assetsByContentId = new Map<string, typeof allAssets>();
   for (const a of allAssets) {
+    if (!a.contentId) continue;
     const list = assetsByContentId.get(a.contentId) || [];
     list.push(a);
     assetsByContentId.set(a.contentId, list);

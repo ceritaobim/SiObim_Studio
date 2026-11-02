@@ -111,6 +111,7 @@ export async function publishVideoToBufferChannel(params: {
   service: string;
   text: string;
   videoUrl: string;
+  title?: string;
   dueAt?: string;
   publishNow?: boolean;
 }): Promise<BufferPostResult> {
@@ -123,12 +124,29 @@ export async function publishVideoToBufferChannel(params: {
     mode = "customScheduled";
   }
 
+  const cleanTitle = (params.title || params.text.split("\n")[0] || "Cerita Obim").trim();
+
   // Construct metadata based on platform
   const metadata: Record<string, unknown> = {};
   if (params.service === "instagram") {
-    metadata.instagram = { type: "reel" };
+    metadata.instagram = {
+      type: "reel",
+      shouldShareToFeed: true,
+      isAiGenerated: true,
+    };
   } else if (params.service === "tiktok") {
-    metadata.tiktok = { allowComments: true, allowDuet: true, allowStitch: true };
+    metadata.tiktok = {
+      title: cleanTitle.slice(0, 80),
+      isAiGenerated: true,
+    };
+  } else if (params.service === "youtube") {
+    metadata.youtube = {
+      title: cleanTitle.slice(0, 95),
+      categoryId: "27", // Education category
+      privacy: "public",
+      madeForKids: false,
+      isAiGenerated: true,
+    };
   }
 
   const query = `
@@ -164,7 +182,7 @@ export async function publishVideoToBufferChannel(params: {
           },
         },
       ],
-      metadata,
+      ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
     },
   };
 
@@ -178,6 +196,18 @@ export async function publishVideoToBufferChannel(params: {
   });
 
   const data = await res.json();
+
+  if (data.errors && data.errors.length > 0) {
+    const errorMsg = data.errors
+      .map((e: { message?: string }) => e.message || "Error")
+      .join(" | ");
+    return {
+      ok: false,
+      channelId: params.channelId,
+      service: params.service,
+      error: errorMsg,
+    };
+  }
   const mutationResult = data.data?.createPost;
 
   if (mutationResult?.message) {
