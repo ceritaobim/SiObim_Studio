@@ -94,7 +94,7 @@ async function startPolling() {
               const apiData = await apiRes.json().catch(() => ({}));
               if (!apiRes.ok) {
                 if (apiRes.status >= 500 && attempts < maxAttempts) {
-                  console.warn(   ⚠️ Server Studio sedang kompilasi/restarting (HTTP ). Mencoba lagi (/)...);
+                  console.warn(`   ⚠️ Server Studio sedang kompilasi/restarting (HTTP ${apiRes.status}). Mencoba lagi (${attempts}/${maxAttempts})...`);
                   await delay(2000);
                   continue;
                 }
@@ -105,7 +105,7 @@ async function startPolling() {
               forwarded = true;
             } catch (forwardErr) {
               if (attempts < maxAttempts) {
-                console.warn(   ⚠️ Menunggu server Next.js aktif (/)...);
+                console.warn(`   ⚠️ Menunggu server Next.js aktif (${attempts}/${maxAttempts})...`);
                 await delay(2500);
               } else {
                 console.error('❌ Gagal meneruskan ke localhost:3000. Pastikan server dev berjalan!', forwardErr.message);
