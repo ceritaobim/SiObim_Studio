@@ -3,7 +3,9 @@ import path from "path";
 import {
   listAssetsForContent,
   listContentItems,
+  listOrInitializePublications,
   updateContentItem,
+  updatePlatformPublication,
 } from "@/lib/db/repository";
 import { createServerSupabaseAdminClient } from "@/lib/auth/owner-auth";
 import {
@@ -180,12 +182,35 @@ export async function publishContentToBuffer(
   const successCount = results.filter((r) => r.ok).length;
   const failureCount = results.length - successCount;
 
-  // 6. Update content status in DB
+  // 6. Update content status and individual platform publication records in DB
   if (successCount > 0) {
     await updateContentItem(ownerId, {
       id: contentId,
       contentStatus: "published",
     });
+
+    try {
+      const pubs = await listOrInitializePublications(ownerId, contentId);
+      for (const res of results) {
+        if (res.ok) {
+          const pub = pubs.find(
+            (p) => p.platform.toLowerCase() === res.service.toLowerCase()
+          );
+          if (pub) {
+            await updatePlatformPublication(ownerId, {
+              publicationId: pub.id,
+              publishStatus: scheduledTime ? "scheduled" : "published",
+              scheduledAt: scheduledTime || null,
+              externalPostUrl: res.postId
+                ? `https://buffer.com/app/posts/${res.postId}`
+                : "",
+            });
+          }
+        }
+      }
+    } catch (pubErr) {
+      console.warn("Gagal memperbarui status publikasi platform di database:", pubErr);
+    }
   }
 
   return {
