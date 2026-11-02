@@ -147,7 +147,7 @@ async function refreshQueueFromServer(targetWeek = null) {
       {
         method: 'GET',
         headers: { Cookie: SESSION_COOKIE },
-        timeout: 5000,
+        timeout: 15000,
       },
       (res) => {
         let d = '';

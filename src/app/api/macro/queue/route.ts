@@ -4,6 +4,7 @@ import path from "path";
 import { getAuthorizedOwner } from "@/lib/auth/owner-auth";
 import {
   generateAndSaveScenePrompts,
+  listAllScenesGroupedByContent,
   listAssetsForContent,
   listContentItems,
   listScenesForContent,
@@ -29,8 +30,19 @@ export async function GET(request: Request) {
   const requestedProgram = url.searchParams.get("program");
   const forceRegenerate = url.searchParams.get("regenerate") === "true";
 
-  // 1. Fetch all content items
-  const allItems = await listContentItems(owner.ownerId);
+  // 1. Fetch all items, scenes, and assets in a single batch query
+  const [allItems, allScenesGrouped, allAssets] = await Promise.all([
+    listContentItems(owner.ownerId),
+    listAllScenesGroupedByContent(owner.ownerId),
+    listAssetsForContent(owner.ownerId),
+  ]);
+
+  const assetsByContentId = new Map<string, typeof allAssets>();
+  for (const a of allAssets) {
+    const list = assetsByContentId.get(a.contentId) || [];
+    list.push(a);
+    assetsByContentId.set(a.contentId, list);
+  }
 
   // Group items by week and sort newest week first
   const parseWeekNum = (notes: string, code: string): number => {
@@ -114,11 +126,8 @@ interface MacroTask {
     const weekNum = parseWeekNum(item.notes || "", item.contentCode);
     const dayNum = parseDayNum(item.notes || "", item.contentCode);
 
-    const [initialScenes, assets] = await Promise.all([
-      listScenesForContent(owner.ownerId, item.id),
-      listAssetsForContent(owner.ownerId, item.id),
-    ]);
-    let scenes = initialScenes;
+    let scenes = allScenesGrouped[item.id] || [];
+    const assets = assetsByContentId.get(item.id) || [];
 
     const needsPrompts =
       scenes.length === 0 ||
