@@ -99,12 +99,55 @@ function sanitizeCredential(val: string | undefined | null): string {
 }
 
 export const STUDIO_DEFAULT_USERNAME =
-  process.env.STUDIO_OWNER_USERNAME || "obim_creator_studio";
+  process.env.STUDIO_OWNER_USERNAME || "siobim";
 
 export const STUDIO_DEFAULT_PASSWORD =
-  process.env.STUDIO_OWNER_PASSWORD || "Obim#Studio9x16!Origami2026$Xq9";
+  process.env.STUDIO_OWNER_PASSWORD || "siobim1";
 
 export const STUDIO_SESSION_TOKEN = "co_verified_owner_365d_token_v1";
+
+/**
+ * Mendeteksi apakah studio sedang berjalan di lingkungan cloud terhosting (Vercel, VPS, Domain Publik)
+ * atau di lingkungan komputer lokal (localhost / 127.0.0.1).
+ */
+export function isHostedStudio(hostHeader?: string | null): boolean {
+  if (process.env.FORCE_LOGIN === "1" || process.env.STUDIO_REQUIRE_AUTH === "true") {
+    return true;
+  }
+  if (process.env.DISABLE_LOGIN === "1" || process.env.IS_LOCAL_STUDIO === "1") {
+    return false;
+  }
+
+  // Deteksi environment Vercel
+  if (process.env.VERCEL === "1" || Boolean(process.env.NEXT_PUBLIC_VERCEL_URL)) {
+    return true;
+  }
+
+  // Deteksi berdasarkan host header
+  if (hostHeader) {
+    const cleanHost = hostHeader.toLowerCase().trim();
+    if (
+      cleanHost.includes("localhost") ||
+      cleanHost.includes("127.0.0.1") ||
+      cleanHost.startsWith("192.168.") ||
+      cleanHost.startsWith("10.") ||
+      cleanHost.startsWith("172.16.") ||
+      cleanHost.startsWith("172.17.") ||
+      cleanHost.startsWith("172.18.") ||
+      cleanHost.startsWith("172.19.") ||
+      cleanHost.startsWith("172.2") ||
+      cleanHost.startsWith("172.30.") ||
+      cleanHost.startsWith("172.31.") ||
+      cleanHost.endsWith(".local")
+    ) {
+      return false;
+    }
+    // Jika ada host selain lokal (misal: *.vercel.app atau domain custom)
+    return true;
+  }
+
+  return process.env.NODE_ENV === "production";
+}
 
 export function verifyStudioLoginCredentials(
   username: string,
@@ -122,13 +165,14 @@ export function verifyStudioLoginCredentials(
   }
 
   // Accepted studio usernames (case-insensitive for mobile keyboards)
-  const validUsernames = ["obim_creator_studio", "ceritaobim", "admin", "obim"];
+  const validUsernames = ["siobim", "obim_creator_studio", "ceritaobim", "admin", "obim"];
   if (!validUsernames.includes(cleanUser) && cleanUser !== envUser) {
     return false;
   }
 
-  // Accepted studio passwords (supports original strong pass and mobile-friendly PIN)
+  // Accepted studio passwords (supports siobim1, original strong pass, and mobile PINs)
   const validPasswords = [
+    "siobim1",
     "Obim#Studio9x16!Origami2026$Xq9",
     "obim2026",
     "Obim2026",

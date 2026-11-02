@@ -17,6 +17,7 @@ import {
   X,
   Sparkles,
   ChevronRight,
+  LogOut,
 } from "lucide-react";
 import { PRIMARY_NAV_ITEMS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,20 @@ function AppShellInner({ children }: { children: ReactNode }) {
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      });
+      router.push("/login");
+      router.refresh();
+    } catch {
+      window.location.href = "/login";
+    }
+  };
 
   const mobileBottomItems = PRIMARY_NAV_ITEMS.filter((item) =>
     MOBILE_BOTTOM_HREFS.includes(item.href)
@@ -102,13 +117,23 @@ function AppShellInner({ children }: { children: ReactNode }) {
                 </div>
               </div>
             </div>
-            <Link
-              href="/settings"
-              className="rounded-lg p-1 text-slate-400 hover:text-slate-600 hover:bg-white transition-colors"
-              title="Pengaturan Studio"
-            >
-              <Settings className="h-4 w-4" />
-            </Link>
+            <div className="flex items-center gap-1">
+              <Link
+                href="/settings"
+                className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-white transition-colors"
+                title="Pengaturan Studio"
+              >
+                <Settings className="h-4 w-4" />
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-lg p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white transition-colors"
+                title="Keluar / Ganti Akun"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -253,6 +278,20 @@ function AppShellInner({ children }: { children: ReactNode }) {
                 </Link>
               );
             })}
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileDrawerOpen(false);
+                handleLogout();
+              }}
+              className="flex w-full items-center justify-between rounded-xl p-3 text-sm text-rose-600 hover:bg-rose-50 transition-colors font-semibold mt-3 border border-rose-100"
+            >
+              <div className="flex items-center gap-3">
+                <LogOut className="h-4 w-4" />
+                <span>Keluar / Ganti Akun</span>
+              </div>
+            </button>
           </div>
         </div>
       ) : null}

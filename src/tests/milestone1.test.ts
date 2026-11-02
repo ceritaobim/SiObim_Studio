@@ -5,6 +5,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   assertOwnerAccess,
   getAuthorizedOwner,
+  verifyStudioLoginCredentials,
+  isHostedStudio,
 } from "@/lib/auth/owner-auth";
 import {
   appendImportedContentItems,
@@ -222,5 +224,25 @@ describe("Milestone 1 — Auth, Database, Settings, Content Library & XLSX", () 
     expect(
       afterImport.find((i) => i.contentCode === "CO-2026-001")?.title
     ).toContain("Kenapa Temen Makin Dikit");
+  });
+
+  it("authenticates hosted credentials 'siobim' / 'siobim1' and distinguishes local vs hosted", () => {
+    // Valid hosted credentials
+    expect(verifyStudioLoginCredentials("siobim", "siobim1")).toBe(true);
+    expect(verifyStudioLoginCredentials("Siobim", "siobim1")).toBe(true);
+    expect(verifyStudioLoginCredentials("SIOBIM", "siobim1")).toBe(true);
+
+    // Invalid credentials
+    expect(verifyStudioLoginCredentials("siobim", "wrongpass")).toBe(false);
+    expect(verifyStudioLoginCredentials("unknown_user", "siobim1")).toBe(false);
+
+    // Local host detection (tidak menggunakan login page)
+    expect(isHostedStudio("localhost:3000")).toBe(false);
+    expect(isHostedStudio("127.0.0.1:3000")).toBe(false);
+    expect(isHostedStudio("192.168.1.50:3000")).toBe(false);
+
+    // Hosted cloud detection (memiliki login page)
+    expect(isHostedStudio("siobim-studio.vercel.app")).toBe(true);
+    expect(isHostedStudio("studio.ceritaobim.com")).toBe(true);
   });
 });

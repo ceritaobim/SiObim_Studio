@@ -1,50 +1,41 @@
 import { NextResponse } from "next/server";
-import {
-  OWNER_SESSION_COOKIE,
-  STUDIO_SESSION_TOKEN,
-  verifyStudioLoginCredentials,
-} from "@/lib/auth/owner-auth";
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as {
-      action?: "login" | "logout";
-      username?: string;
-      password?: string;
-    };
+    const body = await request.json().catch(() => ({}));
+    const username = String(body.username || "").trim();
+    const password = String(body.password || "").trim();
 
-    if (body.action === "logout") {
-      const res = NextResponse.json({ ok: true });
-      res.cookies.delete(OWNER_SESSION_COOKIE);
-      return res;
+    // Kredensial resmi: username siobim, password siobim1
+    const validUsername = process.env.STUDIO_HOSTED_USERNAME || "siobim";
+    const validPassword = process.env.STUDIO_HOSTED_PASSWORD || "siobim1";
+
+    if (username === validUsername && password === validPassword) {
+      const response = NextResponse.json({
+        ok: true,
+        message: "Login berhasil.",
+      });
+
+      // Set cookie sesi hosting berlaku 30 hari
+      response.cookies.set("co_studio_hosted_session", "authenticated_siobim", {
+        path: "/",
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30, // 30 hari
+      });
+
+      return response;
     }
 
-    const username = String(body.username ?? "");
-    const password = String(body.password ?? "");
-
-    if (!verifyStudioLoginCredentials(username, password)) {
-      return NextResponse.json(
-        { error: "Username atau password salah. Silakan cek kembali." },
-        { status: 401 }
-      );
-    }
-
-    const res = NextResponse.json({
-      ok: true,
-      username: username.trim(),
-    });
-
-    // Persist session cookie for 365 days (1 year) so mobile browsers stay logged in
-    res.cookies.set(OWNER_SESSION_COOKIE, STUDIO_SESSION_TOKEN, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365,
-    });
-
-    return res;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Gagal memproses login.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Username atau password salah." },
+      { status: 401 }
+    );
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Terjadi kesalahan server saat login." },
+      { status: 500 }
+    );
   }
 }

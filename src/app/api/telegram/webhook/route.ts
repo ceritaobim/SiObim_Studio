@@ -1,34 +1,37 @@
 import { NextResponse } from "next/server";
-import {
-  handleTelegramCommand,
-  sendTelegramMessage,
-  type TelegramWebhookUpdate,
-} from "@/lib/services/telegram-bot";
+import { TelegramService } from "@/features/telegram/telegram-service";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const update: TelegramWebhookUpdate = await request.json();
-
-    if (update.message && update.message.text) {
-      const chatId = update.message.chat.id;
-      const responseText = await handleTelegramCommand(
-        update.message.text,
-        chatId
-      );
-      await sendTelegramMessage(responseText, chatId);
+    const update = await request.json().catch(() => null);
+    if (!update) {
+      return NextResponse.json({ ok: true, ignored: true });
     }
 
+    const service = new TelegramService();
+    await service.handleUpdate(update);
+
     return NextResponse.json({ ok: true });
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Error processing Telegram webhook";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Internal error";
+    console.error("[TELEGRAM WEBHOOK ERROR]", err);
+    // Telegram requires 200 OK to prevent repeating webhook deliveries
+    return NextResponse.json({ ok: false, error: errorMsg });
   }
 }
 
 export async function GET() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const allowedUser = process.env.TELEGRAM_ALLOWED_USER_ID;
+
   return NextResponse.json({
-    status: "online",
-    message: "CeritaObim Studio Telegram Webhook Endpoint Ready",
+    status: "active",
+    name: "CeritaObim Studio Telegram Webhook",
+    configured: Boolean(token && allowedUser),
+    botActive: Boolean(token),
+    whitelistActive: Boolean(allowedUser),
+    timestamp: new Date().toISOString(),
   });
 }
