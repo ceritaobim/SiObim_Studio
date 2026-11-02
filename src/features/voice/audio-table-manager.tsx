@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Link from "next/link";
 import {
   Mic,
   Zap,
@@ -20,6 +21,7 @@ import {
   Sliders,
   Lock,
   Save,
+  KeyRound,
 } from "lucide-react";
 import type {
   AssetRecord,
@@ -556,7 +558,7 @@ export function AudioTableManager({
       {feedback ? (
         <div
           role="status"
-          className={`flex items-start gap-2.5 rounded-xl border p-3.5 text-xs sm:text-sm ${
+          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border p-4 text-xs sm:text-sm shadow-xs ${
             feedback.type === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-950"
               : feedback.type === "warning"
@@ -564,12 +566,26 @@ export function AudioTableManager({
               : "border-rose-200 bg-rose-50 text-rose-950"
           }`}
         >
-          {feedback.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
-          ) : (
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+          <div className="flex items-start gap-2.5">
+            {feedback.type === "success" ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+            )}
+            <span className="leading-relaxed">{feedback.text}</span>
+          </div>
+
+          {(feedback.text.includes("Models Usage") ||
+            feedback.text.includes("KUOTA_GEMINI_TTS_HABIS") ||
+            feedback.text.includes("429")) && (
+            <Link
+              href="/models-usage"
+              className="inline-flex items-center gap-1.5 self-start sm:self-center px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 shadow-sm transition-all"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              <span>Buka Models Usage &amp; Ganti Akun ➔</span>
+            </Link>
           )}
-          <span>{feedback.text}</span>
         </div>
       ) : null}
 

@@ -50,6 +50,13 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     milestoneTag: "Cast",
   },
   {
+    label: "Models Usage",
+    shortLabel: "Ganti Akun",
+    href: "/models-usage",
+    description: "Ganti Akun Google (Multi-Account), pantau kuota Gemini TTS, Google Flow & ElevenLabs",
+    milestoneTag: "Akun AI",
+  },
+  {
     label: "Tools Hub",
     shortLabel: "Tools",
     href: "/tools",
