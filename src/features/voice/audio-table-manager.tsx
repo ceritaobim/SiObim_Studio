@@ -88,6 +88,8 @@ export function AudioTableManager({
     text: string;
   } | null>(null);
 
+  const [programFilter, setProgramFilter] = useState<string>("all");
+
   const hasAudioFor = (contentId: string) =>
     assets.find(
       (a) => a.contentId === contentId && a.assetType === "voice_audio"
@@ -96,9 +98,11 @@ export function AudioTableManager({
   const getWeekAndDay = (item: ContentItemRecord, idx: number) => {
     const match = item.contentCode.match(/(\d+)$/);
     const num = match?.[1] ? parseInt(match[1], 10) : idx + 1;
-    const weekNum = Math.max(1, Math.ceil(num / 7));
-    const dayNum = ((num - 1) % 7) + 1;
-    return { weekNum, dayNum };
+    const itemsPerWeek = 21;
+    const weekNum = Math.max(1, Math.ceil(num / itemsPerWeek));
+    const dayNum = Math.floor(((num - 1) % itemsPerWeek) / 3) + 1;
+    const programSlot = ((num - 1) % 3) + 1;
+    return { weekNum, dayNum, programSlot };
   };
 
   const itemsWithWeek = items.map((item, idx) => ({
@@ -112,9 +116,13 @@ export function AudioTableManager({
   );
   const weekOptions = Array.from({ length: maxWeek }, (_, i) => i + 1);
 
-  const filteredWeekItems = itemsWithWeek.filter(
-    (entry) => entry.weekNum === selectedWeekNum
-  );
+  const filteredWeekItems = itemsWithWeek.filter((entry) => {
+    if (entry.weekNum !== selectedWeekNum) return false;
+    if (programFilter !== "all" && entry.item.programName !== programFilter) {
+      return false;
+    }
+    return true;
+  });
 
   const completedInWeek = filteredWeekItems.filter((e) =>
     Boolean(hasAudioFor(e.item.id))
@@ -598,6 +606,58 @@ export function AudioTableManager({
               </select>
             </div>
 
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                Filter Program
+              </label>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setProgramFilter("all")}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
+                    programFilter === "all"
+                      ? "bg-stone-900 text-white"
+                      : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                  }`}
+                >
+                  Semua
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProgramFilter("Ke Dapur Yuk!")}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
+                    programFilter === "Ke Dapur Yuk!"
+                      ? "bg-amber-600 text-white"
+                      : "bg-amber-50 text-amber-900 hover:bg-amber-100"
+                  }`}
+                >
+                  🍳 Ke Dapur Yuk!
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProgramFilter("Kepikiran Aja")}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
+                    programFilter === "Kepikiran Aja"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-indigo-50 text-indigo-900 hover:bg-indigo-100"
+                  }`}
+                >
+                  🌙 Kepikiran Aja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProgramFilter("Eh, Ternyata!")}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
+                    programFilter === "Eh, Ternyata!"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                  }`}
+                >
+                  💡 Eh, Ternyata!
+                </button>
+              </div>
+            </div>
+
             {/* Tombol Sinkronisasi GDrive Per Week */}
             <div className="self-end">
               <button
@@ -675,6 +735,24 @@ export function AudioTableManager({
                       <p className="font-medium text-stone-900 line-clamp-2">
                         {item.title}
                       </p>
+                      {item.programName && (
+                        <span
+                          className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                            item.programName === "Ke Dapur Yuk!"
+                              ? "border-amber-300 bg-amber-100 text-amber-900"
+                              : item.programName === "Kepikiran Aja"
+                              ? "border-indigo-300 bg-indigo-100 text-indigo-900"
+                              : "border-emerald-300 bg-emerald-100 text-emerald-900"
+                          }`}
+                        >
+                          {item.programName === "Ke Dapur Yuk!"
+                            ? "🍳 "
+                            : item.programName === "Kepikiran Aja"
+                            ? "🌙 "
+                            : "💡 "}
+                          {item.programName}
+                        </span>
+                      )}
                     </td>
 
                     {/* 2. Durasi */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Sparkles,
   FolderPlus,
@@ -18,6 +18,9 @@ import {
   Bot,
   Send,
   ShieldCheck,
+  Clock,
+  CalendarClock,
+  X,
 } from "lucide-react";
 import type { AssetRecord, ContentItemRecord } from "@/types/domain";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -80,6 +83,11 @@ export function ContentPlanningTable({
     },
   ]);
 
+  const [editingScheduleItem, setEditingScheduleItem] =
+    useState<ContentItemRecord | null>(null);
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const [autoScheduling, setAutoScheduling] = useState(false);
+
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -88,8 +96,11 @@ export function ContentPlanningTable({
   const getFolderInfo = (item: ContentItemRecord, idx: number) => {
     const match = item.contentCode.match(/(\d+)$/);
     const num = match?.[1] ? parseInt(match[1], 10) : idx + 1;
-    const weekNum = Math.max(1, Math.ceil(num / 7));
-    const dayNum = ((num - 1) % 7) + 1;
+    const itemsPerWeek = 21;
+    const weekNum = Math.max(1, Math.ceil(num / itemsPerWeek));
+    const posInWeek = (num - 1) % itemsPerWeek;
+    const dayNum = Math.floor(posInWeek / 3) + 1;
+    const programSlot = (posInWeek % 3) + 1;
     const safeTitle = item.title
       .replace(/[^a-zA-Z0-9\s-_]/g, "")
       .trim()
@@ -97,9 +108,10 @@ export function ContentPlanningTable({
     return {
       weekNum,
       dayNum,
+      programSlot,
       weekFolder: `Week_${String(weekNum).padStart(2, "0")}`,
-      dayFolder: `Hari_${String(dayNum).padStart(2, "0")}_${item.contentCode}_${safeTitle}`,
-      dayLabel: item.publishedAt || `Hari ${dayNum} - 19:00 WIB`,
+      dayFolder: `Hari_${String(dayNum).padStart(2, "0")}_P${programSlot}_${item.contentCode}_${safeTitle}`,
+      dayLabel: item.publishedAt || `Hari ${dayNum} (P${programSlot}) - 19:00 WIB`,
     };
   };
 
@@ -134,7 +146,7 @@ export function ContentPlanningTable({
     (entry) => entry.folder.weekNum === selectedWeekNum
   );
 
-  // Trigger 1: Generate 7 contents specifically for a target week
+  // Trigger 1: Generate 21 contents specifically for a target week (3 items per day across 3 programs)
   const handleTriggerGenerateForWeek = async (targetWeek: number) => {
     setTriggeringPlan(true);
     setFeedback(null);
@@ -147,9 +159,9 @@ export function ContentPlanningTable({
         body: JSON.stringify({
           batchName: `Content Plan — Week ${targetWeek}`,
           targetWeekStart: todayIso,
-          targetVideoCount: 7,
+          targetVideoCount: 21,
           customThemeHint:
-            "Psikologi sehari-hari, kebiasaan anak muda, kesehatan ringan, dan fakta ilmiah relevan",
+            "3 Program Harian CeritaObim: Ke Dapur Yuk! (kuliner/dapur), Kepikiran Aja (psikologi/relatable), Eh, Ternyata! (fakta tak terduga)",
           autoCommit: true,
           targetWeekNumber: targetWeek,
         }),
@@ -176,8 +188,8 @@ export function ContentPlanningTable({
       setFeedback({
         type: "success",
         text: `Berhasil! ${
-          createData.appendedCount ?? 7
-        } konten baru untuk ${targetLabel} selesai dibuat AI${syncNote}`,
+          createData.appendedCount ?? 21
+        } konten baru (3 konten/hari) untuk ${targetLabel} selesai dibuat AI${syncNote}`,
       });
     } catch (err) {
       setFeedback({
@@ -306,6 +318,104 @@ export function ContentPlanningTable({
       }
     } catch {
       // ignore
+    }
+  };
+
+  const handleSaveSchedule = async (
+    itemId: string,
+    scheduledPublishAt: string | null
+  ) => {
+    setScheduleSubmitting(true);
+    try {
+      const res = await fetch("/api/content", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: itemId,
+          scheduledPublishAt,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan jadwal upload.");
+
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === itemId ? { ...it, scheduledPublishAt } : it
+        )
+      );
+      setEditingScheduleItem(null);
+      setFeedback({
+        type: "success",
+        text: `Jadwal upload untuk ${data.item?.contentCode || "konten"} berhasil disimpan!`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: err instanceof Error ? err.message : "Gagal menyimpan jadwal.",
+      });
+    } finally {
+      setScheduleSubmitting(false);
+    }
+  };
+
+  const handleAutoScheduleWeek = async (weekNum: number) => {
+    setAutoScheduling(true);
+    setFeedback(null);
+    try {
+      const entries = currentWeekEntries;
+      if (entries.length === 0) return;
+
+      const baseDate = new Date();
+      baseDate.setDate(baseDate.getDate() + 1); // Start tomorrow
+      baseDate.setHours(19, 0, 0, 0); // 19:00 WIB
+
+      const updatedList = [...items];
+
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        if (!entry) continue;
+        const { item, folder } = entry;
+        const dayOffset = folder.dayNum - 1;
+        const scheduledDate = new Date(
+          baseDate.getTime() + dayOffset * 24 * 60 * 60 * 1000
+        );
+        const year = scheduledDate.getFullYear();
+        const month = String(scheduledDate.getMonth() + 1).padStart(2, "0");
+        const day = String(scheduledDate.getDate()).padStart(2, "0");
+        const hours = String(scheduledDate.getHours()).padStart(2, "0");
+        const minutes = String(scheduledDate.getMinutes()).padStart(2, "0");
+        const isoWithTz = `${year}-${month}-${day}T${hours}:${minutes}:00+07:00`;
+
+        await fetch("/api/content", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: item.id,
+            scheduledPublishAt: isoWithTz,
+          }),
+        });
+
+        const idx = updatedList.findIndex((it) => it.id === item.id);
+        if (idx !== -1 && updatedList[idx]) {
+          const currentItem = updatedList[idx]!;
+          updatedList[idx] = { ...currentItem, scheduledPublishAt: isoWithTz };
+        }
+      }
+
+      setItems(updatedList);
+      setFeedback({
+        type: "success",
+        text: `Jadwal upload ${entries.length} video Week ${weekNum} berhasil diset berurutan jam 19:00 WIB!`,
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: `Gagal mengatur jadwal otomatis: ${
+          err instanceof Error ? err.message : "Error"
+        }`,
+      });
+    } finally {
+      setAutoScheduling(false);
     }
   };
 
@@ -587,7 +697,7 @@ export function ContentPlanningTable({
               disabled={chatLoading}
               onClick={() =>
                 handleSendAgentChat(
-                  `Cek ulang seluruh 7 konten di Week ${selectedWeekNum}, pastikan hook 10 detik pertamanya lebih nendang dan tidak ada topik yang mirip dengan minggu lain.`
+                  `Cek ulang seluruh 21 konten di Week ${selectedWeekNum}, pastikan hook 10 detik pertamanya lebih nendang dan tidak ada topik yang mirip dengan minggu lain.`
                 )
               }
               className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 font-semibold text-amber-900 hover:bg-amber-50 disabled:opacity-50"
@@ -646,7 +756,7 @@ export function ContentPlanningTable({
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             disabled={chatLoading}
-            placeholder={`Ketik instruksi untuk Week ${selectedWeekNum}... (misal: "Ganti Hari 2 jadi tentang susah fokus kerja, atau buatkan 7 konten bertema kesehatan tidur")`}
+            placeholder={`Ketik instruksi untuk Week ${selectedWeekNum}... (misal: "Ganti Hari 2 jadi tentang susah fokus kerja, atau buatkan 21 konten bertema kesehatan tidur")`}
             className="flex-1 rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:border-amber-600 focus:outline-none disabled:opacity-50"
           />
           <button
@@ -705,8 +815,25 @@ export function ContentPlanningTable({
             </div>
           </div>
 
-          {/* Right Controls: View Switcher (Tabel vs Kalender) */}
+          {/* Right Controls: View Switcher (Tabel vs Kalender) & Actions */}
           <div className="flex flex-wrap items-center gap-2">
+            {currentWeekEntries.length > 0 ? (
+              <button
+                type="button"
+                disabled={autoScheduling}
+                onClick={() => handleAutoScheduleWeek(selectedWeekNum)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-50 transition-colors shadow-2xs"
+                title="Atur jadwal upload otomatis 1 video/hari jam 19:00 WIB untuk Buffer"
+              >
+                <CalendarClock className="h-3.5 w-3.5 text-amber-700" />
+                <span>
+                  {autoScheduling
+                    ? "Menyinkronkan..."
+                    : `Auto Jadwal Buffer (19:00 WIB)`}
+                </span>
+              </button>
+            ) : null}
+
             <div className="inline-flex rounded-xl border border-stone-200 bg-stone-100 p-1 text-xs">
               <button
                 type="button"
@@ -758,7 +885,7 @@ export function ContentPlanningTable({
               Week {selectedWeekNum} ({selectedWeekLabel}) Belum Memiliki Content Plan
             </h3>
             <p className="mt-1 max-w-md text-xs text-stone-500">
-              Klik tombol di bawah untuk meminta AI menyusun 7 konten baru khusus{" "}
+              Klik tombol di bawah untuk meminta AI menyusun 21 konten baru (3 konten per hari) khusus{" "}
               <strong>Week {selectedWeekNum}</strong> (lengkap dengan judul, deskripsi, narasi per 10 detik, dan folder otomatis di Google Drive).
             </p>
             <button
@@ -770,8 +897,8 @@ export function ContentPlanningTable({
               <Sparkles className="h-4 w-4" />
               <span>
                 {triggeringPlan
-                  ? `Sedang Menyusun Content Plan Week ${selectedWeekNum}...`
-                  : `⚡ Buat Content Plan Week ${selectedWeekNum}`}
+                  ? `Sedang Menyusun 21 Konten Week ${selectedWeekNum}...`
+                  : `⚡ Buat Content Plan Week ${selectedWeekNum} (21 Konten)`}
               </span>
             </button>
           </div>
@@ -782,6 +909,7 @@ export function ContentPlanningTable({
               <thead>
                 <tr className="border-b border-stone-200 bg-stone-50 text-[11px] font-bold uppercase tracking-wider text-stone-500">
                   <th className="py-3 px-4">Minggu & Hari</th>
+                  <th className="py-3 px-4">Jadwal Upload (Buffer)</th>
                   <th className="py-3 px-4">Judul</th>
                   <th className="py-3 px-4">Deskripsi / Caption</th>
                   <th className="py-3 px-4">Durasi</th>
@@ -810,6 +938,7 @@ export function ContentPlanningTable({
                       onToggle={() =>
                         setExpandedId(isExpanded ? null : item.id)
                       }
+                      onEditSchedule={() => setEditingScheduleItem(item)}
                       onCopy={(text, label) => {
                         navigator.clipboard.writeText(text);
                         setFeedback({
@@ -879,9 +1008,18 @@ export function ContentPlanningTable({
                           {item.contentCode}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-[10px] text-stone-400">
-                        Upload 19:00 WIB
-                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingScheduleItem(item);
+                        }}
+                        className="mt-1 inline-flex items-center gap-1 rounded-lg bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 hover:bg-amber-100 transition-colors"
+                        title="Klik untuk ubah jadwal upload"
+                      >
+                        <Clock className="h-2.5 w-2.5 text-amber-600" />
+                        <span>{formatWibSchedule(item.scheduledPublishAt)}</span>
+                      </button>
 
                       <h4 className="mt-2 text-xs font-bold leading-snug text-stone-900">
                         {item.title}
@@ -966,6 +1104,15 @@ export function ContentPlanningTable({
           </div>
         )}
       </div>
+
+      {/* Schedule Picker Modal */}
+      <SchedulePickerModal
+        item={editingScheduleItem}
+        isOpen={Boolean(editingScheduleItem)}
+        onClose={() => setEditingScheduleItem(null)}
+        onSave={handleSaveSchedule}
+        isSubmitting={scheduleSubmitting}
+      />
     </div>
   );
 }
@@ -976,6 +1123,7 @@ function FragmentRow({
   folder,
   isExpanded,
   onToggle,
+  onEditSchedule,
   onCopy,
 }: {
   item: ContentItemRecord;
@@ -983,6 +1131,7 @@ function FragmentRow({
   folder: { weekFolder: string; dayFolder: string; dayLabel: string };
   isExpanded: boolean;
   onToggle: () => void;
+  onEditSchedule: () => void;
   onCopy: (text: string, label: string) => void;
 }) {
   return (
@@ -1001,6 +1150,20 @@ function FragmentRow({
           <span className="mt-0.5 block text-[11px] text-stone-500">
             {folder.dayLabel}
           </span>
+        </td>
+        <td className="py-3 px-4 whitespace-nowrap">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditSchedule();
+            }}
+            className="group inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-2.5 py-1 text-xs font-semibold text-stone-700 hover:border-amber-400 hover:bg-amber-50/50 transition-colors shadow-2xs"
+            title="Klik untuk atur atau ubah jadwal upload Buffer"
+          >
+            <Clock className="h-3.5 w-3.5 text-amber-600 group-hover:scale-110 transition-transform" />
+            <span>{formatWibSchedule(item.scheduledPublishAt)}</span>
+          </button>
         </td>
         <td className="py-3 px-4 font-bold text-stone-900 max-w-xs">
           {item.title}
@@ -1054,7 +1217,7 @@ function FragmentRow({
       </tr>
       {isExpanded ? (
         <tr className="bg-amber-50/30">
-          <td colSpan={6} className="p-4 space-y-3">
+          <td colSpan={7} className="p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-bold text-stone-900">
                 Narasi Penuh (
@@ -1089,5 +1252,192 @@ function FragmentRow({
         </tr>
       ) : null}
     </>
+  );
+}
+
+function formatWibSchedule(isoStr?: string | null): string {
+  if (!isoStr) return "Belum diatur";
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    return (
+      new Intl.DateTimeFormat("id-ID", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Jakarta",
+      }).format(d) + " WIB"
+    );
+  } catch {
+    return isoStr;
+  }
+}
+
+function SchedulePickerModal({
+  item,
+  isOpen,
+  onClose,
+  onSave,
+  isSubmitting,
+}: {
+  item: ContentItemRecord | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (itemId: string, scheduledPublishAt: string | null) => Promise<void>;
+  isSubmitting: boolean;
+}) {
+  const [customValue, setCustomValue] = useState("");
+
+  useEffect(() => {
+    if (item?.scheduledPublishAt) {
+      try {
+        const d = new Date(item.scheduledPublishAt);
+        const tzOffsetMs = d.getTimezoneOffset() * 60000;
+        const localIso = new Date(d.getTime() - tzOffsetMs)
+          .toISOString()
+          .slice(0, 16);
+        setCustomValue(localIso);
+      } catch {
+        setCustomValue("");
+      }
+    } else {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      d.setHours(19, 0, 0, 0);
+      const tzOffsetMs = d.getTimezoneOffset() * 60000;
+      setCustomValue(
+        new Date(d.getTime() - tzOffsetMs).toISOString().slice(0, 16)
+      );
+    }
+  }, [item]);
+
+  if (!isOpen || !item) return null;
+
+  const setPreset = (daysFromNow: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysFromNow);
+    d.setHours(19, 0, 0, 0);
+    const tzOffsetMs = d.getTimezoneOffset() * 60000;
+    const localIso = new Date(d.getTime() - tzOffsetMs)
+      .toISOString()
+      .slice(0, 16);
+    setCustomValue(localIso);
+  };
+
+  const handleApply = () => {
+    if (!customValue) {
+      onSave(item.id, null);
+      return;
+    }
+    const d = new Date(customValue);
+    onSave(item.id, d.toISOString());
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+      <div className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-xl">
+        <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-amber-600" />
+            <h3 className="text-sm font-bold text-stone-900">
+              Jadwal Upload Buffer
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-3 space-y-4">
+          <div>
+            <span className="font-mono text-xs font-bold text-amber-800">
+              {item.contentCode}
+            </span>
+            <h4 className="mt-0.5 text-xs font-bold text-stone-900 line-clamp-1">
+              {item.title}
+            </h4>
+            <p className="mt-1 text-[11px] text-stone-500">
+              Jadwal ini disinkronkan ke Buffer Queue agar video ter-upload otomatis ke YouTube Shorts, TikTok, dan Instagram Reels.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold text-stone-700 block mb-1.5">
+              Pilih Cepat (Preset 19:00 WIB)
+            </label>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setPreset(0)}
+                className="rounded-lg border border-stone-200 bg-stone-50 py-1.5 font-semibold text-stone-800 hover:border-amber-400 hover:bg-amber-50"
+              >
+                Hari Ini 19:00
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreset(1)}
+                className="rounded-lg border border-stone-200 bg-stone-50 py-1.5 font-semibold text-stone-800 hover:border-amber-400 hover:bg-amber-50"
+              >
+                Besok 19:00
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreset(2)}
+                className="rounded-lg border border-stone-200 bg-stone-50 py-1.5 font-semibold text-stone-800 hover:border-amber-400 hover:bg-amber-50"
+              >
+                Lusa 19:00
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold text-stone-700 block mb-1">
+              Pilih Tanggal & Jam Bebas
+            </label>
+            <input
+              type="datetime-local"
+              value={customValue}
+              onChange={(e) => setCustomValue(e.target.value)}
+              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-xs font-mono text-stone-900 shadow-2xs focus:border-amber-500 focus:outline-hidden"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-between gap-2 border-t border-stone-100 pt-3">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => onSave(item.id, null)}
+            className="text-xs font-semibold text-rose-600 hover:underline disabled:opacity-50"
+          >
+            Hapus Jadwal
+          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={onClose}
+              className="rounded-xl border border-stone-200 px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-50"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={handleApply}
+              className="rounded-xl bg-amber-600 px-4 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-amber-700 disabled:opacity-50"
+            >
+              {isSubmitting ? "Menyimpan..." : "Simpan Jadwal"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

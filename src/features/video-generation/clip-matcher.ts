@@ -48,6 +48,23 @@ export function matchFilenameToScene(
     };
   }
 
+  // 1b. Match short code format with optional pzxc_ prefix and optional xx separator
+  // e.g. "pzxc_1_1_1_3xx_20261025024812.mp4", "pzxc_1_1_1_3xx.mp4", "1_1_1_3xx.mp4", "1_1_1_3.mp4"
+  const shortCodeMatch = upperName.match(/(?:^|[^0-9A-Z])(?:PZXC_)?\d+_\d+_\d+_0*(\d+)(?:XX|[^0-9]|$)/i);
+  if (shortCodeMatch?.[1]) {
+    const idx = parseInt(shortCodeMatch[1], 10);
+    const target = scenes.find((s) => s.sceneIndex === idx);
+    if (target) {
+      return {
+        filename: cleanName,
+        matchedSceneIndex: target.sceneIndex,
+        matchedSceneId: target.id,
+        expectedFilename: target.expectedFilename,
+        reason: `Terdeteksi Bagian #${target.sceneIndex} dari kode segmen/bagian (${shortCodeMatch[0].trim()})`,
+      };
+    }
+  }
+
   // 2. Match explicit "BAGIAN" pattern (e.g. "Bagian 1", "Bagian_2", "Bagian-3", "Bagian04")
   const bagianPattern = upperName.match(/(?:BAGIAN|BAG)[-_ ]?0*(\d+)/i);
   if (bagianPattern?.[1]) {
@@ -113,8 +130,8 @@ export function matchFilenameToScene(
     }
   }
 
-  // 6. Fallback: look for standalone number before extension (e.g. "001.mp4", "..._3.mp4", "...-4.mp4")
-  const trailingNum = baseWithoutExt.match(/(?:^|[-_ ])0*(\d+)$/);
+  // 6. Fallback: look for standalone number before extension (e.g. "001.mp4", "..._3.mp4", "...-4.mp4") - max 2 digits to ignore timestamps
+  const trailingNum = baseWithoutExt.match(/(?:^|[-_ ])0*(\d{1,2})$/);
   if (trailingNum?.[1]) {
     const idx = parseInt(trailingNum[1], 10);
     const target = scenes.find((s) => s.sceneIndex === idx);
@@ -247,7 +264,14 @@ export function evaluateClipCompleteness(
 
   for (const asset of sceneVideoAssets) {
     const targetScene = scenes.find(
-      (s) => s.id === asset.sceneId || s.uploadedClipAssetId === asset.id
+      (s) =>
+        s.id === asset.sceneId ||
+        s.uploadedClipAssetId === asset.id ||
+        asset.originalFilename === `Bagian ${s.sceneIndex}.mp4` ||
+        (asset as unknown as { metadata?: { partIndex?: number } })?.metadata
+          ?.partIndex === s.sceneIndex ||
+        asset.originalFilename.includes(`_Bagian_0${s.sceneIndex}`) ||
+        asset.originalFilename.includes(`SCENE_00${s.sceneIndex}`)
     );
     if (targetScene) {
       countBySceneIndex.set(

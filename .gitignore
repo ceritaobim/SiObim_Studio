@@ -30,6 +30,7 @@ yarn-error.log*
 /.data/
 /storage/
 /scratch/
+/00.FolderOwner/
 *.local.json
 
 # Vercel

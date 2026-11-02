@@ -45,7 +45,7 @@ export function WeeklyBatchWizard({
     new Date().toISOString().slice(0, 10)
   );
   const [targetVideoCount, setTargetVideoCount] = useState(
-    initialSettings.weeklyVideoTarget || 2
+    initialSettings.weeklyVideoTarget || 21
   );
   const [customThemeHint, setCustomThemeHint] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -350,18 +350,42 @@ export function WeeklyBatchWizard({
                 htmlFor="targetVideoCount"
                 className="block font-medium text-stone-700"
               >
-                Jumlah Usulan Video (1–14)
+                Jumlah Usulan Video (1–28)
               </label>
-              <input
-                id="targetVideoCount"
-                type="number"
-                min={1}
-                max={14}
-                required
-                value={targetVideoCount}
-                onChange={(e) => setTargetVideoCount(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900"
-              />
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  id="targetVideoCount"
+                  type="number"
+                  min={1}
+                  max={28}
+                  required
+                  value={targetVideoCount}
+                  onChange={(e) => setTargetVideoCount(Number(e.target.value))}
+                  className="w-24 rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900"
+                />
+                <button
+                  type="button"
+                  onClick={() => setTargetVideoCount(3)}
+                  className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    targetVideoCount === 3
+                      ? "border-amber-600 bg-amber-50 text-amber-900"
+                      : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100"
+                  }`}
+                >
+                  ⚡ 3 Konten (1 Hari • 3 Program)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetVideoCount(21)}
+                  className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    targetVideoCount === 21
+                      ? "border-amber-600 bg-amber-50 text-amber-900"
+                      : "border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100"
+                  }`}
+                >
+                  🔥 21 Konten (1 Minggu • 3/Hari)
+                </button>
+              </div>
             </div>
           </div>
 
@@ -465,6 +489,24 @@ export function WeeklyBatchWizard({
                       <span className="rounded bg-amber-100 px-2 py-0.5 font-mono text-xs font-bold text-amber-900">
                         {prop.suggestedCode}
                       </span>
+                      {prop.programName && (
+                        <span
+                          className={`rounded border px-2 py-0.5 text-xs font-semibold ${
+                            prop.programName === "Ke Dapur Yuk!"
+                              ? "border-amber-300 bg-amber-100 text-amber-900"
+                              : prop.programName === "Kepikiran Aja"
+                              ? "border-indigo-300 bg-indigo-100 text-indigo-900"
+                              : "border-emerald-300 bg-emerald-100 text-emerald-900"
+                          }`}
+                        >
+                          {prop.programName === "Ke Dapur Yuk!"
+                            ? "🍳 "
+                            : prop.programName === "Kepikiran Aja"
+                            ? "🌙 "
+                            : "💡 "}
+                          {prop.programName}
+                        </span>
+                      )}
                       <span className="text-xs text-stone-500">
                         {prop.category} • Target {prop.targetDurationSeconds} dtk
                       </span>

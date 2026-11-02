@@ -156,51 +156,35 @@ export function segmentNarrationIntoScenes(
     });
   }
 
-  // Group clauses into scenes within [minMs, maxMs] around sentence/clause boundaries
-  const rawScenes: ClauseSpanGroup[] = [];
-  let currentGroup: ClauseSpanGroup | null = null;
+  // Strict time-based grouping: target exactly 10s (10,000ms) per scene,
+  // regardless of whether the sentence is finished or not (mid-sentence cuts allowed).
+  const targetSceneMs = 10000;
+  const rawScenes: Array<{ text: string; startMs: number; endMs: number }> = [];
 
-  for (let i = 0; i < clauseGroups.length; i++) {
-    const cg = clauseGroups[i]!;
-    if (!currentGroup) {
-      currentGroup = { ...cg };
-      continue;
-    }
+  let sceneWords: string[] = [];
+  let sceneStartMs = spans[0]?.startMs ?? 0;
+  let sceneLastEndMs = sceneStartMs;
 
-    const currentDuration = currentGroup.endMs - currentGroup.startMs;
-    const combinedDuration = cg.endMs - currentGroup.startMs;
-    const endsWithStrongPunctuation = /[.!?]$/.test(currentGroup.text);
+  for (let i = 0; i < spans.length; i++) {
+    const s = spans[i]!;
+    sceneWords.push(s.word);
+    sceneLastEndMs = s.endMs;
 
-    const shouldCloseCurrent =
-      (currentDuration >= minMs && endsWithStrongPunctuation) ||
-      combinedDuration > maxMs ||
-      currentDuration >= targetIdealMs;
+    const currentSpanDuration = sceneLastEndMs - sceneStartMs;
+    const isLastWord = i === spans.length - 1;
 
-    if (shouldCloseCurrent) {
-      rawScenes.push(currentGroup);
-      currentGroup = { ...cg };
-    } else {
-      currentGroup = {
-        text: `${currentGroup.text} ${cg.text}`,
-        startMs: currentGroup.startMs,
-        endMs: cg.endMs,
-      };
-    }
-  }
+    // Cut at 10 seconds or when reaching the end of the transcript
+    if (currentSpanDuration >= targetSceneMs || isLastWord) {
+      rawScenes.push({
+        text: sceneWords.join(" "),
+        startMs: sceneStartMs,
+        endMs: sceneLastEndMs,
+      });
 
-  if (currentGroup) {
-    // If the trailing scene is very short (< minMs / 2) and can be merged into previous without exceeding maxMs + 2500ms, merge it
-    const prev = rawScenes[rawScenes.length - 1];
-    const trailingDuration = currentGroup.endMs - currentGroup.startMs;
-    if (
-      prev &&
-      trailingDuration < minMs * 0.5 &&
-      currentGroup.endMs - prev.startMs <= maxMs + 2500
-    ) {
-      prev.text = `${prev.text} ${currentGroup.text}`;
-      prev.endMs = currentGroup.endMs;
-    } else {
-      rawScenes.push(currentGroup);
+      if (!isLastWord) {
+        sceneWords = [];
+        sceneStartMs = sceneLastEndMs;
+      }
     }
   }
 

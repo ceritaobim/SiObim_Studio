@@ -135,7 +135,7 @@ describe("Milestone 2 — Weekly Content Planning & Google Sheets Sync", () => {
     });
 
     expect(commitRes.appendedItems).toHaveLength(1);
-    expect(commitRes.appendedItems[0]?.contentCode).toBe("CO-2026-008");
+    expect(commitRes.appendedItems[0]?.contentCode).toBe("CO-2026-022");
     expect(commitRes.appendedItems[0]?.contentStatus).toBe("script_approved");
 
     const afterItems = await listContentItems(ownerId, {

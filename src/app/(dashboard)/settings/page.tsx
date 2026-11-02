@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsManager } from "@/features/settings/settings-manager";
+import { TelegramSettingsCard } from "@/features/settings/telegram-settings-card";
 import { getAuthorizedOwner } from "@/lib/auth/owner-auth";
 import {
   getProjectSettings,
@@ -35,8 +36,8 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Setting & Koneksi Google Drive"
-        subtitle="Kelola koneksi Google Drive (01_Produksi_Harian), Spreadsheet ContentPlan_CeritaObim, dan pengaturan identitas channel."
+        title="Pengaturan Studio &amp; Integrasi Cloud"
+        subtitle="Kelola koneksi Telegram Bot, Google Drive, Spreadsheet, dan identitas channel CeritaObim."
         milestoneLabel="Setelan Proyek"
         statusLabel={
           storageStatus.mode === "supabase_postgres"
@@ -44,6 +45,9 @@ export default async function SettingsPage() {
             : "Database: Penyimpanan Lokal (.data)"
         }
       />
+
+      {/* Pusat Kontrol Bot Telegram */}
+      <TelegramSettingsCard />
 
       {/* Panduan Otomatisasi Google Drive & Spreadsheet */}
       <section className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 shadow-xs">
@@ -63,7 +67,7 @@ export default async function SettingsPage() {
         </div>
         <details className="mt-3 rounded-xl border border-indigo-200 bg-white p-3">
           <summary className="cursor-pointer text-xs font-bold text-indigo-700">
-            Lihat & Copy Kode Google Apps Script (Auto-Update Sheet + Auto-Create Folder GDrive)
+            Lihat &amp; Copy Kode Google Apps Script (Auto-Update Sheet + Auto-Create Folder GDrive)
           </summary>
           <pre className="mt-3 max-h-72 overflow-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100">
             {GOOGLE_APPS_SCRIPT_SNIPPET}

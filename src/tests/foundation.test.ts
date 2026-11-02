@@ -13,7 +13,7 @@ describe("Milestone 0 — Foundation & Provider Status Honesty", () => {
     expect(DEFAULT_PROJECT_SETTINGS.outputWidth).toBe(1080);
     expect(DEFAULT_PROJECT_SETTINGS.outputHeight).toBe(1920);
     expect(DEFAULT_PROJECT_SETTINGS.noSubtitles).toBe(true);
-    expect(DEFAULT_PROJECT_SETTINGS.defaultDurationSeconds).toBe(70);
+    expect(DEFAULT_PROJECT_SETTINGS.defaultDurationSeconds).toBe(28);
     expect(DEFAULT_PROJECT_SETTINGS.targetSceneSecondsMin).toBe(6);
     expect(DEFAULT_PROJECT_SETTINGS.targetSceneSecondsMax).toBe(10);
     expect(
@@ -45,17 +45,17 @@ describe("Milestone 0 — Foundation & Provider Status Honesty", () => {
     expect(supabase?.connected).toBe(false);
   });
 
-  it("includes all streamlined navigation routes (Monitor, Content Planning, Audio, Video, Characters, Upload, Dashboard, Settings)", () => {
+  it("includes all streamlined navigation routes (Monitor, Content Planning, Audio, Video, Publishing, Characters, Tools, Analytics, Settings)", () => {
     const hrefs = PRIMARY_NAV_ITEMS.map((item) => item.href);
     expect(hrefs).toEqual([
       "/",
       "/content",
       "/production",
       "/assets",
-      "/characters",
       "/publishing",
+      "/characters",
+      "/tools",
       "/analytics",
-      "/models-usage",
       "/settings",
     ]);
   });

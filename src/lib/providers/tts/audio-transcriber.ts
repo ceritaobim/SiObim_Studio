@@ -136,7 +136,9 @@ export async function transcribeAndSegmentAudioFile(params: {
         `ATURAN KUNCI TIMESTAMP:`,
         `- Deteksi detik awal (startSec) tepat saat kata pertama diucapkan. JANGAN memotong di tengah kata!`,
         `- Deteksi detik akhir (endSec) saat kata terakhir di bagian tersebut selesai diucapkan.`,
-        `- Setiap bagian WAJIB memiliki durasi MAKSIMAL 10 DETIK (endSec - startSec <= 10.0 detik).`,
+        `- TARGET DURASI SETIAP BAGIAN ADALAH 10 DETIK (toleransi 8 - 10 detik per bagian).`,
+        `- JANGAN memotong naskah per kalimat pendek! Potong teks tepat pada detik ke-10, detik ke-20, detik ke-30, dst., meskipun kalimatnya belum selesai (pemotongan di tengah kalimat diperbolehkan).`,
+        `- Hanya bagian terakhir yang boleh berdurasi kurang dari 8 detik (sisa durasi audio).`,
         `- Pastikan seluruh naskah tercakup 100% berurutan dari detik 0 sampai akhir audio (${totalSec}s).`,
         `Untuk setiap bagian berikan juga visualAction origami stop-motion (Obim) dan sfxCue pendek.`,
         `Kembalikan HANYA JSON array berisi objek: { "partIndex": number, "startSec": number, "endSec": number, "text": string, "visualAction": string, "sfxCue": string }`,
@@ -163,60 +165,81 @@ export async function transcribeAndSegmentAudioFile(params: {
                 {
                   parts: [
                     {
-                      inlineData: {
-                        mimeType: params.mimeType.includes("wav")
-                          ? "audio/wav"
-                          : "audio/mpeg",
-                        data: buffer.toString("base64"),
-                      },
-                    },
-                    { text: prompt },
-                  ],
+                  inlineData: {
+                    mimeType: params.mimeType.includes("wav")
+                      ? "audio/wav"
+                      : "audio/mpeg",
+                    data: buffer.toString("base64"),
+                  },
                 },
+                { text: prompt },
               ],
-              generationConfig: {
-                responseMimeType: "application/json",
-              },
-            }),
-          });
+            },
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+          },
+        }),
+      });
 
-          if (res.ok) {
-            const data = (await res.json()) as {
-              candidates?: Array<{
-                content?: { parts?: Array<{ text?: string }> };
-              }>;
-            };
-            const rawJson =
-              data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-            const json = JSON.parse(rawJson);
-            if (Array.isArray(json) && json.length > 0) {
-              parsed = json as TranscribedAudioPart[];
-              break;
-            }
-          }
-        } catch {
-          // try next model
+      if (res.ok) {
+        const data = (await res.json()) as {
+          candidates?: Array<{
+            content?: { parts?: Array<{ text?: string }> };
+          }>;
+        };
+        const rawJson =
+          data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        const json = JSON.parse(rawJson);
+        if (Array.isArray(json) && json.length > 0) {
+          parsed = json as TranscribedAudioPart[];
+          break;
         }
       }
+    } catch {
+      // try next model
+    }
+  }
 
       if (parsed && parsed.length > 0) {
+        // Consolidate short parts into target 10s (8-10s tolerance) blocks
+        const consolidatedParts: TranscribedAudioPart[] = [];
+        let curr: TranscribedAudioPart = { ...parsed[0]! };
+
+        for (let i = 1; i < parsed.length; i++) {
+          const next = parsed[i]!;
+          const combinedDur = next.endSec - curr.startSec;
+          const currDur = curr.endSec - curr.startSec;
+          if (combinedDur <= 10.5 || currDur < 8) {
+            curr.endSec = next.endSec;
+            curr.text = `${curr.text} ${next.text}`.trim();
+            if (next.visualAction && !curr.visualAction?.includes(next.visualAction)) {
+              curr.visualAction = `${curr.visualAction || ""} ${next.visualAction}`.trim();
+            }
+          } else {
+            consolidatedParts.push(curr);
+            curr = { ...next };
+          }
+        }
+        consolidatedParts.push(curr);
+
         const now = new Date().toISOString();
         let cursorMs = 0;
 
-        const scenes: SceneRecord[] = parsed.map((part, idx) => {
+        const scenes: SceneRecord[] = consolidatedParts.map((part, idx) => {
           const sceneIndex = idx + 1;
           const rawStart = Number(part.startSec ?? cursorMs / 1000);
-          const rawEnd = Number(part.endSec ?? rawStart + 5);
+          const rawEnd = Number(part.endSec ?? rawStart + 10);
 
           const startMs = idx === 0 ? 0 : cursorMs;
           let endMs = Math.round(rawEnd * 1000);
           if (endMs <= startMs) {
-            endMs = startMs + 3000;
+            endMs = startMs + 8000;
           }
           if (endMs - startMs > 10000) {
             endMs = startMs + 10000;
           }
-          if (idx === parsed!.length - 1) {
+          if (idx === consolidatedParts.length - 1) {
             endMs = Math.max(startMs + 1000, Math.round(params.totalDurationMs));
           }
           cursorMs = endMs;
@@ -281,21 +304,21 @@ export async function transcribeAndSegmentAudioFile(params: {
     narrationText: cleanScript,
     timestampStatus: "estimated",
     totalAudioDurationMs: params.totalDurationMs,
-    minSceneSeconds: 5,
-    maxSceneSeconds: 9,
+    minSceneSeconds: 8,
+    maxSceneSeconds: 10,
   });
 
   let cursorMs = 0;
   const normalizedScenes = rawFallback.map((sc, idx) => {
     const rawDur = Math.max(
       3000,
-      Math.min(9000, Math.round(sc.durationMs / 1000) * 1000)
+      Math.min(10000, Math.round(sc.durationMs / 1000) * 1000)
     );
     const startMs = idx === 0 ? 0 : cursorMs;
     const endMs =
       idx === rawFallback.length - 1
         ? Math.max(startMs + 1000, Math.round(params.totalDurationMs))
-        : Math.min(startMs + 9500, startMs + rawDur);
+        : Math.min(startMs + 10000, startMs + rawDur);
     cursorMs = endMs;
 
     return {

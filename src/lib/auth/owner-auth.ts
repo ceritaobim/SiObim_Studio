@@ -13,16 +13,19 @@ export interface AuthOwnerContext {
 }
 
 export function createServerSupabaseAdminClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const rawKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !key) {
+  if (!rawUrl || !rawKey) {
     return null;
   }
 
-  return createClient(url, key, {
+  const cleanUrl = rawUrl.trim().replace(/^["']|["']$/g, "");
+  const cleanKey = rawKey.trim().replace(/^["']|["']$/g, "");
+
+  return createClient(cleanUrl, cleanKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

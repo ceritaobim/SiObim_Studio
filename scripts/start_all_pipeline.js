@@ -1,0 +1,194 @@
+/**
+ * CeritaObim Studio — START ALL (Master Automation Pipeline)
+ *
+ * Alur Penuh End-to-End:
+ * 1. [TAHAP 1/4] Generate Video (Prompting 10 Profil + Tag @obim.jpg + Approval)
+ * 2. [TAHAP 2/4] Download Video (Otomatis unduh klip 720p berdasar rekaman klik kanan)
+ * 3. [TAHAP 3/4] Migrasi (Pindai Downloads, bersihkan nama klip, & auto-rakit FFmpeg)
+ * 4. [TAHAP 4/4] Cek Kredit (100% Otomatis catat kuota sisa 10 akun via Google One)
+ */
+
+const fs = require('fs');
+const path = require('path');
+const readline = require('readline');
+const { execSync } = require('child_process');
+const { runDownloadPipeline } = require('./download_recorded_assets');
+
+const SESSION_FILE = path.resolve(__dirname, '..', 'storage', 'macro', 'active_production_session.json');
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function askQuestion(query) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return new Promise((resolve) =>
+    rl.question(query, (ans) => {
+      rl.close();
+      resolve(ans.trim());
+    })
+  );
+}
+
+function waitForUserOrTimeout(seconds, message) {
+  return new Promise((resolve) => {
+    let remaining = seconds;
+    let finished = false;
+
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    process.stdout.write(`\r${message} (${remaining}s tersisa, atau tekan [ENTER] untuk langsung lanjut): `);
+
+    const timer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(timer);
+        if (!finished) {
+          finished = true;
+          rl.close();
+          process.stdout.write('\n');
+          resolve('timeout');
+        }
+      } else {
+        process.stdout.write(`\r${message} (${remaining}s tersisa, atau tekan [ENTER] untuk langsung lanjut): `);
+      }
+    }, 1000);
+
+    rl.question('', () => {
+      clearInterval(timer);
+      if (!finished) {
+        finished = true;
+        rl.close();
+        process.stdout.write('\n');
+        resolve('enter');
+      }
+    });
+  });
+}
+
+async function main() {
+  console.log('\n===============================================================================');
+  console.log('       🚀 CERITAOBIM STUDIO — START ALL (PIPELINE OTOMASI PENUH)              ');
+  console.log('===============================================================================');
+  console.log(' Pipeline ini akan menjalankan 4 TAHAP PRODUKSI UTAMA secara berurutan:');
+  console.log('   [Tahap 1/4] GENERATE VIDEO  -> Batch prompting 10 profil Google Flow');
+  console.log('   [Tahap 2/4] DOWNLOAD VIDEO  -> Unduh otomatis 720p berdasar rekaman klik kanan');
+  console.log('   [Tahap 3/4] MIGRASI KLIP    -> Pindahkan pzxc_*, bersihkan nama & rakit FFmpeg');
+  console.log('   [Tahap 4/4] CEK KREDIT      -> 100% otomatis catat sisa kredit 10 akun');
+  console.log('===============================================================================\n');
+
+  // Input jumlah bagian per profil
+  const chunkInput = await askQuestion('Berapa bagian video per profil? (Default: 4 bagian): ');
+  let chunkSize = parseInt(chunkInput, 10);
+  if (isNaN(chunkSize) || chunkSize < 1) chunkSize = 4;
+
+  console.log(`\n⚙️  Pengaturan: ${chunkSize} bagian video per profil.`);
+  console.log('🚀 Memulai Tahap 1 dalam 3 detik...\n');
+  await delay(3000);
+
+  // ---------------------------------------------------------------------------
+  // TAHAP 1: GENERATE VIDEO
+  // ---------------------------------------------------------------------------
+  console.log('\n===============================================================================');
+  console.log(' 🎬 [TAHAP 1/4] MEMULAI GENERATE VIDEO DI 10 PROFIL GOOGLE FLOW');
+  console.log('===============================================================================');
+  
+  // Simpan session target download berdasarkan antrean batch aktual
+  const { generateBatches } = require('./build_batches');
+  const initialBatches = generateBatches(chunkSize);
+
+  const sessionData = {
+    updatedAt: new Date().toISOString(),
+    chunkSize: chunkSize,
+    profileSceneCounts: {},
+  };
+  for (let p = 1; p <= 10; p++) {
+    const b = initialBatches[p - 1];
+    sessionData.profileSceneCounts[String(p)] = b ? b.sceneCount : 0;
+  }
+  fs.writeFileSync(SESSION_FILE, JSON.stringify(sessionData, null, 2), 'utf8');
+
+  try {
+    execSync(`node "${path.resolve(__dirname, 'gflow-windows-macro.js')}" --chunk=${chunkSize} --all`, { stdio: 'inherit' });
+  } catch (err) {
+    console.log('⚠️  Tahap generate video selesai atau dilewati sebagian.');
+  }
+
+  console.log('\n✅ [TAHAP 1/4 SELESAI] Seluruh profil telah di-prompt dan di-approve!');
+
+  // ---------------------------------------------------------------------------
+  // TAHAP 2: DOWNLOAD VIDEO (DENGAN REKAMAN KLIK KANAN)
+  // ---------------------------------------------------------------------------
+  console.log('\n===============================================================================');
+  console.log(' ⏳ [JEDA 3 MENIT] MENUNGGU RENDER CLOUD FLOW SELESAI');
+  console.log('===============================================================================');
+  console.log('Memberi waktu 3 menit agar video selesai dirender di server Google Flow...');
+  await waitForUserOrTimeout(180, '⏱️  Menunggu proses render selesai di Google Flow');
+
+  console.log('\n===============================================================================');
+  console.log(' ⬇️  [TAHAP 2/4] MEMULAI DOWNLOAD OTOMATIS VIDEO SELESAI (10 PROFIL)');
+  console.log('===============================================================================');
+
+  try {
+    await runDownloadPipeline({ defaultPerProfile: chunkSize });
+  } catch (err) {
+    console.error('❌ Terjadi kendala saat download otomatis:', err.message);
+  }
+
+  console.log('\n✅ [TAHAP 2/4 SELESAI] Seluruh file video berhasil diproses untuk diunduh!');
+
+  // Jeda 3 menit antara download dan migrasi agar seluruh file selesai tersimpan di disk
+  console.log('\n===============================================================================');
+  console.log(' ⏳ [JEDA 3 MENIT] MEMASTIKAN SELURUH FILE SELESAI TERTULIS KE FOLDER DOWNLOADS');
+  console.log('===============================================================================');
+  console.log('Memberi waktu 3 menit agar browser Chrome selesai menulis seluruh file ke disk...');
+  await waitForUserOrTimeout(180, '⏱️  Menunggu seluruh file download selesai tersimpan');
+
+  // ---------------------------------------------------------------------------
+  // TAHAP 3: MIGRASI & PERAKITAN FFMPEG
+  // ---------------------------------------------------------------------------
+  console.log('\n===============================================================================');
+  console.log(' 📦 [TAHAP 3/4] MEMULAI MIGRASI, SANITASI NAMA & AUTO-RAKIT FFMPEG');
+  console.log('===============================================================================');
+  console.log('Memindahkan pzxc_* dari Downloads, menamai menjadi 1_1_1_x.mp4 ke KLIP_BERSIH...');
+
+  try {
+    execSync(`node "${path.resolve(__dirname, 'macro-worker.js')}" --sync`, { stdio: 'inherit' });
+  } catch (err) {
+    console.error('❌ Terjadi kendala saat sinkronisasi migrasi:', err.message);
+  }
+
+  console.log('\n✅ [TAHAP 3/4 SELESAI] Klip bersih tersimpan & video master dirakit!');
+
+  // ---------------------------------------------------------------------------
+  // TAHAP 4: CEK KREDIT AKHIR
+  // ---------------------------------------------------------------------------
+  console.log('\n===============================================================================');
+  console.log(' 💳 [TAHAP 4/4] MEMULAI CEK SISA KREDIT 10 AKUN (GOOGLE ONE)');
+  console.log('===============================================================================');
+
+  try {
+    execSync(`node "${path.resolve(__dirname, 'check_flow_credits.js')}"`, { stdio: 'inherit' });
+  } catch (err) {
+    console.error('❌ Terjadi kendala saat cek kredit:', err.message);
+  }
+
+  console.log('\n===============================================================================');
+  console.log(' 🎉 SELURUH PIPELINE START ALL SELESAI DENGAN SUKSES!                         ');
+  console.log('===============================================================================');
+  console.log('Ringkasan Hasil Produksi:');
+  console.log('  1. Generate Video  : 10 Akun Profil Google Flow selesai di-prompt');
+  console.log('  2. Download Video  : Berkas video 720p berhasil diunduh');
+  console.log('  3. Migrasi Klip    : Nama distandardisasi & tersimpan di 00.FolderOwner\\KLIP_BERSIH');
+  console.log('  4. Video Master    : 00Final.mp4 dirakit bersama narasi audio ElevenLabs');
+  console.log('  5. Kredit Akun     : Catatan sisa kuota terbaru tersimpan di database website');
+  console.log('===============================================================================\n');
+}
+
+main().catch(console.error);

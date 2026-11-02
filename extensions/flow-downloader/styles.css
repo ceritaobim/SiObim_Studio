@@ -1,0 +1,224 @@
+/* CeritaObim Studio — Google Flow Downloader UI Styles */
+
+#ceritaobim-floating-panel {
+  position: fixed;
+  top: 16px;
+  right: 90px;
+  z-index: 9999999;
+  background: rgba(18, 18, 24, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(99, 102, 241, 0.2);
+  border-radius: 12px;
+  color: #f3f4f6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 12px 14px;
+  width: 320px;
+  transition: all 0.2s ease-in-out;
+  user-select: none;
+}
+
+#ceritaobim-floating-panel.minimized {
+  width: auto;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+#ceritaobim-floating-panel.minimized .cobim-body,
+#ceritaobim-floating-panel.minimized .cobim-footer {
+  display: none;
+}
+
+.cobim-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.cobim-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cobim-badge-status {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.cobim-badge-status.busy {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+.cobim-badge-status.error {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.cobim-controls-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cobim-icon-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.cobim-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.cobim-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cobim-info-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #d1d5db;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cobim-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cobim-input-row label {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.cobim-input-number {
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 4px;
+  color: #fff;
+  padding: 4px 8px;
+  width: 60px;
+  text-align: center;
+  font-weight: 600;
+  outline: none;
+}
+
+.cobim-input-number:focus {
+  border-color: #6366f1;
+}
+
+.cobim-btn-primary {
+  background: linear-gradient(135deg, #4f46e5, #06b6d4);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.cobim-btn-primary:hover:not(:disabled) {
+  opacity: 0.95;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+}
+
+.cobim-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.cobim-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.cobim-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.cobim-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.cobim-log-box {
+  background: #09090b;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  padding: 8px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: #a1a1aa;
+  max-height: 85px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.cobim-log-box .highlight {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.cobim-log-box .success {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.cobim-log-box .warn {
+  color: #fbbf24;
+}
+
+/* Card Numbering Badge */
+.cobim-card-marker {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(79, 70, 229, 0.9);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 1000;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}

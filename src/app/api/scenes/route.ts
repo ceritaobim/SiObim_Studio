@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthorizedOwner } from "@/lib/auth/owner-auth";
 import {
   generateAndSaveScenePrompts,
+  listAllScenesGroupedByContent,
   listAssetsForContent,
   listContentItems,
   listScenesForContent,
@@ -9,7 +10,6 @@ import {
 } from "@/lib/db/repository";
 import {
   evaluateClipCompleteness,
-  matchFilenameToScene,
 } from "@/features/video-generation/clip-matcher";
 
 export async function GET(request: Request) {
@@ -26,6 +26,30 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const contentId = url.searchParams.get("contentId");
+  const getAll = url.searchParams.get("all") === "true";
+
+  if (getAll || !contentId) {
+    const [items, allAssets, allScenesByContent] = await Promise.all([
+      listContentItems(owner.ownerId),
+      listAssetsForContent(owner.ownerId),
+      listAllScenesGroupedByContent(owner.ownerId),
+    ]);
+    const targetContentId = contentId || items[0]?.id || "";
+    const selectedContent = items.find((i) => i.id === targetContentId) ?? null;
+    const scenes = selectedContent ? (allScenesByContent[selectedContent.id] || []) : [];
+    const completeness = evaluateClipCompleteness(
+      scenes,
+      allAssets.filter((a) => a.contentId === selectedContent?.id)
+    );
+    return NextResponse.json({
+      items,
+      selectedContent,
+      scenes,
+      assets: allAssets,
+      scenesByContent: allScenesByContent,
+      completeness,
+    });
+  }
 
   const items = await listContentItems(owner.ownerId);
   const targetContentId = contentId || items[0]?.id || "";
@@ -41,13 +65,13 @@ export async function GET(request: Request) {
   const hasVoice = assets.some(
     (a) => a.contentId === selectedContent?.id && a.assetType === "voice_audio"
   );
-  let scenes = hasVoice ? rawScenes : [];
-  if (hasVoice && scenes.length === 0 && selectedContent) {
+  let scenes = rawScenes;
+  if (scenes.length === 0 && selectedContent) {
     try {
       scenes = await generateAndSaveScenePrompts(
         owner.ownerId,
         selectedContent.id,
-        { retranscribeAudio: true }
+        { retranscribeAudio: hasVoice }
       );
     } catch {
       scenes = [];
@@ -107,15 +131,6 @@ export async function POST(request: Request) {
       const hasVoice = existingAssets.some(
         (a) => a.contentId === contentId && a.assetType === "voice_audio"
       );
-      if (!hasVoice) {
-        return NextResponse.json(
-          {
-            error:
-              "Audio voice over belum digenerate untuk konten ini. Silakan generate audio di menu Voice Over terlebih dahulu sebelum mengunggah klip.",
-          },
-          { status: 400 }
-        );
-      }
 
       let currentScenes = await listScenesForContent(owner.ownerId, contentId);
       if (currentScenes.length === 0) {
@@ -182,8 +197,8 @@ export async function POST(request: Request) {
       let assemblyError: string | null = null;
       let autoAssembled = false;
 
-      // Auto-trigger assembly of "00Final" if all parts are complete!
-      if (completeness.readyForAssembly) {
+      // Auto-trigger assembly of "00Final" if all parts are complete and voice audio is ready!
+      if (completeness.readyForAssembly && hasVoice) {
         try {
           const { runContentVideoAssembly } = await import(
             "@/lib/db/repository"

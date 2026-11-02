@@ -86,13 +86,17 @@ export const ContentItemInputSchema = z.object({
   youtubeDescription: z.string().trim().max(5000).default(""),
   instagramCaption: z.string().trim().max(2200).default(""),
   notes: z.string().trim().max(2000).default(""),
-  targetDurationSeconds: z.coerce.number().int().min(15).max(180).default(70),
+  programName: z
+    .enum(["Ke Dapur Yuk!", "Kepikiran Aja", "Eh, Ternyata!"])
+    .optional(),
+  targetDurationSeconds: z.coerce.number().int().min(15).max(180).default(28),
   factualClaims: z.array(z.string().trim().min(1)).default([]),
   sourceUrls: z.array(z.string().trim().min(1)).default([]),
   verificationStatus: VerificationStatusSchema.default("needs_verification"),
   contentStatus: ContentStatusSchema.default("idea"),
   sourceBatchId: z.string().nullable().optional().default(null),
   isDemo: z.boolean().optional().default(false),
+  scheduledPublishAt: z.string().nullable().optional().default(null),
   publishedAt: z.string().nullable().optional().default(null),
 });
 
@@ -107,10 +111,13 @@ export type ContentItemUpdateInput = z.infer<typeof ContentItemUpdateSchema>;
 
 export const LLMGeneratedProposalSchema = z.object({
   title: z.string().trim().min(5).max(220),
+  programName: z
+    .enum(["Ke Dapur Yuk!", "Kepikiran Aja", "Eh, Ternyata!"])
+    .optional(),
   category: z.string().trim().min(2).max(100).default("Sains & Keingintahuan"),
   topic: z.string().trim().min(5).max(300),
   hook: z.string().trim().min(5).max(500),
-  narration: z.string().trim().min(30).max(8000),
+  narration: z.string().trim().min(20).max(8000),
   cta: z
     .string()
     .trim()
@@ -120,14 +127,15 @@ export const LLMGeneratedProposalSchema = z.object({
   tiktokCaption: z.string().trim().max(2200).default(""),
   youtubeDescription: z.string().trim().max(5000).default(""),
   instagramCaption: z.string().trim().max(2200).default(""),
-  targetDurationSeconds: z.coerce.number().int().min(15).max(180).default(70),
+  targetDurationSeconds: z.coerce.number().int().min(15).max(180).default(28),
   factualClaims: z.array(z.string().trim().min(3)).default([]),
   sourceUrls: z.array(z.string().trim().url()).default([]),
   verificationStatus: VerificationStatusSchema.default("needs_verification"),
+  scheduledPublishAt: z.string().nullable().optional(),
 });
 
 export const LLMContentPlanOutputSchema = z.object({
-  proposals: z.array(LLMGeneratedProposalSchema).min(1).max(14),
+  proposals: z.array(LLMGeneratedProposalSchema).min(1).max(28),
 });
 
 export type LLMGeneratedProposal = z.infer<typeof LLMGeneratedProposalSchema>;
@@ -135,7 +143,7 @@ export type LLMGeneratedProposal = z.infer<typeof LLMGeneratedProposalSchema>;
 export const CreateBatchRequestSchema = z.object({
   batchName: z.string().trim().min(3).max(120),
   targetWeekStart: z.string().trim().min(8).max(30),
-  targetVideoCount: z.coerce.number().int().min(1).max(14).default(2),
+  targetVideoCount: z.coerce.number().int().min(1).max(28).default(21),
   customThemeHint: z.string().trim().max(400).optional().default(""),
 });
 

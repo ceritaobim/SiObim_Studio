@@ -25,22 +25,23 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettingsSummary = {
   channelName: "cerita_obim",
   language: "id-ID",
   timezone: "Asia/Makassar",
-  niche: "Fakta unik, sains populer, sejarah singkat, dan keingintahuan sehari-hari",
+  niche:
+    "Tiga Program Resmi Si Obim: Ke Dapur Yuk! (Kuliner & Makanan), Kepikiran Aja (Psikologi & Pertanyaan Sebelum Tidur), dan Eh, Ternyata! (Fakta Sains & Mitos)",
   toneGuide:
-    "Hangat, penasaran, jelas, bercerita cepat tanpa bertele-tele, bahasa Indonesia kasual-edukatif.",
+    "Hangat, penasaran, jelas, padat, bercerita cepat tanpa bertele-tele (durasi 15-30 detik), bahasa Indonesia kasual-edukatif.",
   visualStyleGuide:
     "Handmade origami paper stop-motion; setiap karakter, objek, properti, dan latar belakang tampak terbuat dari kertas lipat; tanpa manusia/objek fotorealistik; tanpa subtitle atau teks di dalam video.",
   characterDescription:
-    "Obim: karakter anak penasaran dari lipatan kertas origami warna kuning hangat dan jaket biru lipat doff, proporsi konsisten di setiap scene.",
+    "Obim: karakter anak muda ramah dari lipatan kertas origami warna krem hangat, kemeja flanel kotak-kotak merah, dan rambut mangkuk biru-hitam, proporsi konsisten di setiap scene.",
   characterReferenceAssetIds: [],
-  defaultDurationSeconds: 70,
+  defaultDurationSeconds: 28,
   targetSceneSecondsMin: 6,
   targetSceneSecondsMax: 10,
   outputAspectRatio: "9:16",
   outputWidth: 1080,
   outputHeight: 1920,
   noSubtitles: true,
-  weeklyVideoTarget: 2,
+  weeklyVideoTarget: 21,
   dailyBudgetLimit: 10,
   monthlyBudgetLimit: 50,
   maxSceneRetries: 2,

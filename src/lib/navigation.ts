@@ -8,75 +8,66 @@ export interface NavItem {
 
 export const PRIMARY_NAV_ITEMS: NavItem[] = [
   {
-    label: "Monitor",
-    shortLabel: "Monitor",
+    label: "Dashboard",
+    shortLabel: "Home",
     href: "/",
-    description:
-      "Pusat kontrol progres Content Planning, Audio, dan Video (alokasi kredit AI)",
-    milestoneTag: "Utama",
+    description: "Pusat monitoring ringkas produksi mingguan dan aksi cepat",
+    milestoneTag: "Home",
   },
   {
-    label: "Content Planning",
+    label: "Content Plan",
     shortLabel: "Planning",
     href: "/content",
-    description:
-      "Tabel jadwal harian, trigger AI buat plan baru & buat folder Google Drive otomatis",
+    description: "Tabel jadwal harian & generator topik fakta sains unik",
     milestoneTag: "Plan",
   },
   {
-    label: "Audio",
+    label: "Voice Over",
     shortLabel: "Audio",
     href: "/production",
-    description:
-      "Tabel antrean suara per konten & trigger ElevenLabs (kontrol kredit karakter)",
+    description: "Generator narasi suara Obim & manajemen audio MP3",
     milestoneTag: "TTS",
   },
   {
-    label: "Video",
+    label: "Video Studio",
     shortLabel: "Video",
     href: "/assets",
-    description:
-      "Tabel pecahan 8 scene (per 10 detik) & trigger Google Flow origami stop-motion",
+    description: "Dropzone klip origami stop-motion & perakitan video final",
     milestoneTag: "GFlow",
+  },
+  {
+    label: "Publishing",
+    shortLabel: "Buffer",
+    href: "/publishing",
+    description: "Auto-publish ke TikTok, YouTube Shorts, dan Instagram Reels via Buffer",
+    milestoneTag: "Sosmed",
   },
   {
     label: "Karakter",
     shortLabel: "Karakter",
     href: "/characters",
-    description:
-      "Upload gambar referensi karakter utama & sampingan beserta ciri visual dan karakteristiknya",
+    description: "Galeri pose, ekspresi, dan konsistensi visual Obim",
     milestoneTag: "Cast",
   },
   {
-    label: "Upload",
-    shortLabel: "Upload",
-    href: "/publishing",
-    description:
-      "Asisten upload harian sesuai jam algoritma (YT Shorts, TikTok, IG Reels) dengan popup Copy-Next",
-    milestoneTag: "Sosmed",
+    label: "Tools Hub",
+    shortLabel: "Tools",
+    href: "/tools",
+    description: "Diagnosa kesehatan & setting engine AI, GFlow, Buffer, Drive, dan FFmpeg",
+    milestoneTag: "Engines",
   },
   {
-    label: "Analitik",
-    shortLabel: "Analitik",
+    label: "Evaluasi & Analitik",
+    shortLabel: "Evaluasi",
     href: "/analytics",
-    description:
-      "Pantau performa penayangan, jam tonton, interaksi, dan evaluasi hook (TikTok, YouTube Shorts, IG Reels)",
-    milestoneTag: "Metrik",
+    description: "Evaluasi performa konten, metrik medsos, dan riset ide pertumbuhan Obim",
+    milestoneTag: "Growth",
   },
   {
-    label: "Models Usage",
-    shortLabel: "Models",
-    href: "/models-usage",
-    description:
-      "Kelola daftar Akun Google, pantau sisa kuota kredit real-time ElevenLabs & Gemini AI, dan pilih akun aktif",
-    milestoneTag: "Kuota AI",
-  },
-  {
-    label: "Setting",
+    label: "Pengaturan",
     shortLabel: "Setting",
     href: "/settings",
-    description:
-      "Koneksi Google Drive, Spreadsheet ContentPlan_CeritaObim, dan pengaturan identitas channel",
-    milestoneTag: "Setelan",
+    description: "Setelan mode studio, backup cloud, VPS deployment, dan bot Telegram",
+    milestoneTag: "Sistem",
   },
 ];

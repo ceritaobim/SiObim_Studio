@@ -144,7 +144,25 @@ export async function POST(request: Request) {
         timestampStatus: wordSpans && wordSpans.length > 0 ? "actual" : "estimated",
       });
 
-      return NextResponse.json(result, { status: 201 });
+      let autoAssembled = false;
+      let finalVideoAsset = null;
+      try {
+        const { evaluateClipCompleteness } = await import(
+          "@/features/video-generation/clip-matcher"
+        );
+        const latestAssets = await listAssetsForContent(owner.ownerId, contentId);
+        const completeness = evaluateClipCompleteness(result.scenes, latestAssets);
+        if (completeness.readyForAssembly) {
+          const { runContentVideoAssembly } = await import("@/lib/db/repository");
+          const assemblyRes = await runContentVideoAssembly(owner.ownerId, contentId);
+          finalVideoAsset = assemblyRes.finalVideoAsset;
+          autoAssembled = true;
+        }
+      } catch {
+        // Non-blocking
+      }
+
+      return NextResponse.json({ ...result, autoAssembled, finalVideoAsset }, { status: 201 });
     }
 
     // Case 2: JSON request (TTS synthesis or Google Drive audio sync)
@@ -277,7 +295,25 @@ export async function POST(request: Request) {
       timestampStatus: synthesis.timestampStatus,
     });
 
-    return NextResponse.json(result, { status: 201 });
+    let autoAssembled = false;
+    let finalVideoAsset = null;
+    try {
+      const { evaluateClipCompleteness } = await import(
+        "@/features/video-generation/clip-matcher"
+      );
+      const latestAssets = await listAssetsForContent(owner.ownerId, content.id);
+      const completeness = evaluateClipCompleteness(result.scenes, latestAssets);
+      if (completeness.readyForAssembly) {
+        const { runContentVideoAssembly } = await import("@/lib/db/repository");
+        const assemblyRes = await runContentVideoAssembly(owner.ownerId, content.id);
+        finalVideoAsset = assemblyRes.finalVideoAsset;
+        autoAssembled = true;
+      }
+    } catch {
+      // Non-blocking
+    }
+
+    return NextResponse.json({ ...result, autoAssembled, finalVideoAsset }, { status: 201 });
   } catch (err) {
     const message =
       err instanceof Error

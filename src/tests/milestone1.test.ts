@@ -79,7 +79,7 @@ describe("Milestone 1 — Auth, Database, Settings, Content Library & XLSX", () 
       storePath: tempStorePath,
       forceLocal: true,
     });
-    expect(initial.defaultDurationSeconds).toBe(70);
+    expect(initial.defaultDurationSeconds).toBe(28);
 
     await saveProjectSettings(
       ownerA,

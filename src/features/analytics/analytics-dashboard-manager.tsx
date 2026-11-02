@@ -15,6 +15,16 @@ import {
   Layers,
   Flame,
   Award,
+  TrendingUp,
+  Share2,
+  Lightbulb,
+  Compass,
+  Copy,
+  ArrowRight,
+  RefreshCw,
+  Radio,
+  BookOpen,
+  Send,
 } from "lucide-react";
 import type {
   AnalyticsSummary,
@@ -23,6 +33,8 @@ import type {
   PlatformTarget,
 } from "@/types/domain";
 import { SectionCard } from "@/components/ui/section-card";
+import { useStudioMode } from "@/context/studio-mode-context";
+import type { ContentGrowthEvaluation } from "@/lib/providers/llm/content-growth-evaluator";
 
 interface AnalyticsDashboardManagerProps {
   initialSummary: AnalyticsSummary;
@@ -41,6 +53,37 @@ export function AnalyticsDashboardManager({
 
   // Platform Filter
   const [selectedPlatform, setSelectedPlatform] = useState<"all" | PlatformTarget>("all");
+
+  // Studio Mode (Simple vs Advance)
+  const { isAdvance } = useStudioMode();
+
+  // AI Content Evaluation & Growth Plan State
+  const [aiEvaluation, setAiEvaluation] = useState<ContentGrowthEvaluation | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evalError, setEvalError] = useState<string | null>(null);
+  const [copiedTopicIdx, setCopiedTopicIdx] = useState<number | null>(null);
+
+  const handleRunEvaluation = async () => {
+    setEvaluating(true);
+    setEvalError(null);
+    try {
+      const res = await fetch("/api/analytics/evaluate", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menjalankan evaluasi");
+      setAiEvaluation(data.evaluation);
+    } catch (err) {
+      setEvalError(err instanceof Error ? err.message : "Terjadi kesalahan sistem saat evaluasi AI.");
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  const handleCopyTopic = (topic: { suggestedTitle: string; hook: string; whyItWillWin: string }, idx: number) => {
+    const text = `Judul: ${topic.suggestedTitle}\nHook: ${topic.hook}\nAlasan: ${topic.whyItWillWin}`;
+    navigator.clipboard.writeText(text);
+    setCopiedTopicIdx(idx);
+    setTimeout(() => setCopiedTopicIdx(null), 2000);
+  };
 
   // Quick Edit Modal State
   const [editingContent, setEditingContent] = useState<ContentItemRecord | null>(null);
@@ -186,19 +229,77 @@ export function AnalyticsDashboardManager({
 
   return (
     <div className="space-y-6">
-      {/* 1. Header Info & Notification */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* 1. Header Info & AI Growth Action */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-stone-900 sm:text-2xl">
-            Cross-Platform Content Analytics
-          </h1>
-          <p className="text-xs text-stone-600 sm:text-sm">
-            Pantau pertumbuhan tayangan, retensi jam tonton, dan formula hook dari YouTube Shorts, TikTok, & IG Reels.
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-stone-900 sm:text-2xl">
+              Evaluasi Performa & Perkembangan Konten
+            </h1>
+            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+              <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+              Growth Engine
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-stone-600 sm:text-sm">
+            Pantau tayangan lintas medsos, evaluasi formula hook yang berhasil, dan dapatkan rekomendasi 5 ide topik viral berikutnya dari AI.
           </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleRunEvaluation}
+          disabled={evaluating}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:from-indigo-700 hover:to-violet-700 active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shrink-0"
+        >
+          <Sparkles className={`h-4 w-4 ${evaluating ? "animate-spin" : ""}`} />
+          {evaluating ? "Menganalisis Performa Akun..." : "Evaluasi AI & Riset Topik Baru"}
+        </button>
+      </div>
+
+      {/* 2. Buffer Integration & Transparency Banner */}
+      <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/40 p-4 shadow-xs">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+              <Radio className="h-5 w-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-stone-900">
+                  Status Integrasi Buffer & Pelacakan Medsos
+                </h3>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  3 Kanal Terhubung
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-stone-600">
+                Terhubung ke <strong>YouTube (@obim)</strong>, <strong>TikTok (@cerita_obim)</strong>, dan <strong>Instagram (@cerita_obim)</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-white/80 border border-indigo-100 p-2 text-[11px] text-stone-600 sm:max-w-md leading-relaxed">
+            <span className="font-semibold text-indigo-950">Catatan Analitik Buffer:</span> API Buffer Free melacak statistik kiriman yang diposting via Buffer. Untuk video historis lama sebelum koneksi, Anda dapat mencatat tayangan organik lewat tombol <strong>&quot;Edit Metrik&quot;</strong> di tabel bawah.
+          </div>
         </div>
       </div>
 
-      {/* 2. Top Metric Cards */}
+      {/* Eval Error Alert */}
+      {evalError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+            <span>{evalError}</span>
+          </div>
+          <button onClick={() => setEvalError(null)} className="text-rose-600 hover:text-rose-900">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 3. Top Metric Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         {/* Total Views */}
         <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-xs">
@@ -332,68 +433,210 @@ export function AnalyticsDashboardManager({
           </div>
         </SectionCard>
 
-        {/* AI Winning Formula & Hook Analyzer */}
+        {/* AI Winning Formula & Content Growth Suite */}
         <SectionCard
-          title="AI Winning Formula & Hook Analyzer"
-          description="Pola psikologis dan visual dari video yang terbukti tembus ribuan views."
+          title="Evaluasi Performa & Riset Pertumbuhan (AI Growth Suite)"
+          description="Analisis mendalam pola algoritma medsos dan rekomendasi topik berikutnya dari Gemini AI."
           badge={
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-              <Sparkles className="h-3 w-3" /> Rekomendasi Algoritma
+            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
+              <Sparkles className="h-3 w-3 text-indigo-600" />
+              {aiEvaluation ? "Evaluasi Live AI Terverifikasi" : "Model Rekomendasi Algoritma"}
             </span>
           }
           className="lg:col-span-2"
         >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pt-1">
-            <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3.5">
-              <div className="flex items-center gap-2">
-                <Flame className="h-4 w-4 text-amber-600" />
-                <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                  Topik Pemenang Terbesar
-                </h3>
+          {aiEvaluation ? (
+            <div className="space-y-4 pt-1">
+              {/* Executive Summary */}
+              <div className="rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/80 via-white to-violet-50/60 p-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-indigo-600" />
+                  <h3 className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
+                    Ringkasan Evaluasi Akun CeritaObim
+                  </h3>
+                </div>
+                <p className="mt-1.5 text-xs text-stone-700 leading-relaxed font-medium">
+                  {aiEvaluation.summaryVerdict}
+                </p>
               </div>
-              <p className="mt-1.5 text-xs font-semibold text-stone-800">
-                Fakta Tubuh & Mitos Medis Indonesia
-              </p>
-              <p className="mt-1 text-xs text-stone-600 leading-relaxed">
-                Video <em>&apos;Masuk Angin&apos;</em> (1.7k YT / 1.3k IG) & <em>&apos;Tulang Bungkuk&apos;</em> (661 TikTok) membuktikan bahwa audiens langsung berhenti scroll jika merasa fisiknya tersentil.
-              </p>
-            </div>
 
-            <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3.5">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-sky-600" />
-                <h3 className="text-xs font-bold text-sky-950 uppercase tracking-wide">
-                  Magnet Subscriber Baru
-                </h3>
+              {/* 5 Recommended Next Topics */}
+              <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4 text-amber-500" />
+                    <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
+                      5 Rekomendasi Topik Baru Siap Masuk Content Plan
+                    </h3>
+                  </div>
+                  <span className="text-[11px] text-stone-500">Klik tombol salin untuk simpan</span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {aiEvaluation.recommendedNextTopics.map((top, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-lg border border-stone-200/90 bg-stone-50/60 p-3 flex flex-col justify-between hover:border-indigo-300 transition-colors"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="inline-block rounded-md bg-indigo-100/80 px-2 py-0.5 text-[10px] font-bold text-indigo-800">
+                            {top.programName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyTopic(top, idx)}
+                            className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-[10px] font-medium text-stone-600 border border-stone-200 hover:text-indigo-600 cursor-pointer"
+                          >
+                            {copiedTopicIdx === idx ? (
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                            {copiedTopicIdx === idx ? "Tersalin!" : "Salin"}
+                          </button>
+                        </div>
+                        <h4 className="mt-2 text-xs font-bold text-stone-900 leading-snug">
+                          {top.suggestedTitle}
+                        </h4>
+                        <p className="mt-1 text-[11px] text-stone-600 italic">
+                          &quot;{top.hook}&quot;
+                        </p>
+                        <p className="mt-1.5 text-[10px] text-emerald-700 bg-emerald-50 rounded p-1.5">
+                          <strong>Potensi:</strong> {top.whyItWillWin}
+                        </p>
+                        {isAdvance && (
+                          <p className="mt-1 text-[10px] text-stone-500">
+                            <strong>Cover Visual:</strong> {top.origamiVisualHook}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="mt-1.5 text-xs font-semibold text-stone-800">
-                Pola Tidur & Relatable Work-Life
-              </p>
-              <p className="mt-1 text-xs text-stone-600 leading-relaxed">
-                Video <em>&apos;Siang ngantuk, malam melek&apos;</em> menyumbang <strong>+6 subscriber</strong> sendirian. Topik kecemasan harian paling efektif memancing orang menekan tombol subscribe/follow.
-              </p>
-            </div>
 
-            <div className="sm:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3.5">
-              <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wide flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Blueprint Produksi Batch Berikutnya
-              </h3>
-              <ul className="mt-2 space-y-1.5 text-xs text-stone-700">
-                <li className="flex items-start gap-1.5">
-                  <span className="text-emerald-600 font-bold">•</span>
-                  <span><strong>Hook 0-2 detik:</strong> Hindari nama karakter di awal. Gunakan kata pancingan: <em>&quot;Pernah gak...&quot;</em> atau <em>&quot;Kenapa ya...&quot;</em> yang langsung mengarah ke masalah penonton.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-emerald-600 font-bold">•</span>
-                  <span><strong>Visual Origami Dinamis:</strong> Pakai panah penunjuk merah origami atau model organ/benda yang bergerak di detik pertama.</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-emerald-600 font-bold">•</span>
-                  <span><strong>Bio Profil:</strong> Isi biodata di TikTok dan YouTube dengan positioning yang jelas (e.g. &quot;Fakta tubuh & psikologi unik harian lewat animasi origami&quot;) agar penonton yang mampir langsung follow.</span>
-                </li>
-              </ul>
+              {/* Hook Analysis & Program Comparison Grid */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Winning Hook Formulas */}
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3.5">
+                  <div className="flex items-center gap-2">
+                    <Flame className="h-4 w-4 text-emerald-600" />
+                    <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wide">
+                      Formula Hook Terbukti Viral
+                    </h3>
+                  </div>
+                  <ul className="mt-2 space-y-1.5 text-xs text-stone-700">
+                    {aiEvaluation.hookEvaluation.winningFormulas.map((f, i) => (
+                      <li key={i} className="flex items-start gap-1.5">
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Weak Points to Avoid */}
+                <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-3.5">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-rose-600" />
+                    <h3 className="text-xs font-bold text-rose-950 uppercase tracking-wide">
+                      Hindari Kesalahan Pembuka
+                    </h3>
+                  </div>
+                  <ul className="mt-2 space-y-1.5 text-xs text-stone-700">
+                    {aiEvaluation.hookEvaluation.weakPointsToAvoid.map((w, i) => (
+                      <li key={i} className="flex items-start gap-1.5">
+                        <span className="text-rose-600 font-bold">•</span>
+                        <span>{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* 3 Program Comparison */}
+                <div className="sm:col-span-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3.5">
+                  <h3 className="text-xs font-bold text-indigo-950 uppercase tracking-wide flex items-center gap-1.5">
+                    <Compass className="h-4 w-4 text-indigo-600" /> Evaluasi 3 Program Konten CeritaObim
+                  </h3>
+                  <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-3 text-xs">
+                    <div className="rounded bg-white p-2.5 border border-indigo-100 shadow-2xs">
+                      <span className="font-bold text-amber-800">Ke Dapur Yuk!</span>
+                      <p className="mt-1 text-stone-600 text-[11px] leading-relaxed">
+                        {aiEvaluation.programComparison.keDapurYuk}
+                      </p>
+                    </div>
+                    <div className="rounded bg-white p-2.5 border border-indigo-100 shadow-2xs">
+                      <span className="font-bold text-sky-800">Kepikiran Aja</span>
+                      <p className="mt-1 text-stone-600 text-[11px] leading-relaxed">
+                        {aiEvaluation.programComparison.kepikiranAja}
+                      </p>
+                    </div>
+                    <div className="rounded bg-white p-2.5 border border-indigo-100 shadow-2xs">
+                      <span className="font-bold text-emerald-800">Eh, Ternyata!</span>
+                      <p className="mt-1 text-stone-600 text-[11px] leading-relaxed">
+                        {aiEvaluation.programComparison.ehTernyata}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-4 pt-1">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3.5">
+                  <div className="flex items-center gap-2">
+                    <Flame className="h-4 w-4 text-amber-600" />
+                    <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                      Topik Pemenang Terbesar
+                    </h3>
+                  </div>
+                  <p className="mt-1.5 text-xs font-semibold text-stone-800">
+                    Fakta Tubuh & Dapur Sehari-hari
+                  </p>
+                  <p className="mt-1 text-xs text-stone-600 leading-relaxed">
+                    Video <em>&apos;Iris Bawang Bikin Nangis&apos;</em> dan <em>&apos;Nasi Goreng Nasi Sisa&apos;</em> mencatat retensi tertinggi karena penonton merasa fisiknya dan kebiasaan hariannya langsung tersentil.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3.5">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-sky-600" />
+                    <h3 className="text-xs font-bold text-sky-950 uppercase tracking-wide">
+                      Magnet Subscriber Baru
+                    </h3>
+                  </div>
+                  <p className="mt-1.5 text-xs font-semibold text-stone-800">
+                    Pola Tidur & Relatable Life Hacks
+                  </p>
+                  <p className="mt-1 text-xs text-stone-600 leading-relaxed">
+                    Topik kecemasan harian seperti <em>&apos;Ide Muncul Pas Mandi&apos;</em> dan <em>&apos;Suara Hujan Bikin Ngantuk&apos;</em> paling efektif memicu orang menekan tombol subscribe/follow.
+                  </p>
+                </div>
+
+                <div className="sm:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3.5">
+                  <h3 className="text-xs font-bold text-emerald-950 uppercase tracking-wide flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Blueprint Produksi Batch Berikutnya
+                  </h3>
+                  <ul className="mt-2 space-y-1.5 text-xs text-stone-700">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-emerald-600 font-bold">•</span>
+                      <span><strong>Hook 0-2 detik:</strong> Hindari salam bertele-tele. Tampilkan ekspresi wajah terkejut/penasaran Obim dan banner kertas 3D judul pertanyaan di detik pertama.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-emerald-600 font-bold">•</span>
+                      <span><strong>Visual Origami Dinamis:</strong> Pastikan ada model kertas yang bergerak (seperti irisan bawang lepas atau butir nasi melompat) agar mata penonton tidak bosan.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-emerald-600 font-bold">•</span>
+                      <span><strong>Riset Topik Baru:</strong> Klik tombol <em>&quot;Evaluasi AI & Riset Topik Baru&quot;</em> di kanan atas untuk mendapatkan 5 topik lanjutan yang dirancang khusus oleh AI.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
         </SectionCard>
       </div>
 

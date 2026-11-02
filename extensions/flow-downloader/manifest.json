@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "CeritaObim Studio — Flow Video Downloader",
+  "version": "1.0.0",
+  "description": "Ekstensi otomatisasi download video 720p presisi tinggi untuk Google Flow.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://flow.google.com/*",
+    "*://labs.google/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://flow.google.com/*",
+        "*://labs.google/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

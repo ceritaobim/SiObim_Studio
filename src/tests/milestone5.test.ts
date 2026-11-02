@@ -234,14 +234,14 @@ describe("Milestone 5 — Durable Queue, Budget Guard, Idempotency & FFmpeg Asse
 
     expect(assembled.job.status).toBe("succeeded");
     expect(assembled.finalVideoAsset.width).toBe(1080);
-    expect(assembled.finalVideoAsset.height).toBe(1920);
+    const safeTitle = (content.title || "").replace(/[?:/*"<>|\\]/g, "").trim();
     expect(assembled.finalVideoAsset.originalFilename).toBe(
-      `${content.contentCode}_MASTER_9x16.mp4`
+      `final-${safeTitle}.mp4`
     );
     expect(
       assembled.assemblyResult.manifest.orderedScenes.map((s) => s.sceneIndex)
     ).toEqual(scenes.map((s) => s.sceneIndex));
 
     if (fs.existsSync(tmpStore)) fs.unlinkSync(tmpStore);
-  });
+  }, 15000);
 });

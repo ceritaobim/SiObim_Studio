@@ -95,6 +95,21 @@ describe("Milestone 4 — Scene Prompts & Semi-Manual Google Flow", () => {
     const matchParen = matchFilenameToScene("download (5).mp4", scenes);
     expect(matchParen.matchedSceneIndex).toBe(5);
 
+    const matchShortCodeWithXx = matchFilenameToScene(
+      "1_1_1_3xx_20261025024812.mp4",
+      scenes
+    );
+    expect(matchShortCodeWithXx.matchedSceneIndex).toBe(3);
+
+    const matchPzxcWithXx = matchFilenameToScene(
+      "pzxc_1_1_1_3xx_20261025024812.mp4",
+      scenes
+    );
+    expect(matchPzxcWithXx.matchedSceneIndex).toBe(3);
+
+    const matchShortCodeClean = matchFilenameToScene("1_1_1_2.mp4", scenes);
+    expect(matchShortCodeClean.matchedSceneIndex).toBe(2);
+
     // Batch mapping with arbitrary filenames from Gemini/Flow
     const { matchBatchFilesToScenes } = await import(
       "@/features/video-generation/clip-matcher"

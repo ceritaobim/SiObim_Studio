@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, useRef } from "react";
+import { useState, useEffect, type FormEvent, useRef } from "react";
 import Link from "next/link";
 import {
   Film,
@@ -23,6 +23,8 @@ import {
   Mic,
   ArrowRight,
   Volume2,
+  Bot,
+  FolderDown,
 } from "lucide-react";
 import type {
   AssetRecord,
@@ -31,6 +33,8 @@ import type {
 } from "@/types/domain";
 import { deriveContextualSfxCue } from "@/features/scenes/prompt-generator";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { FlowCreditVisualizer } from "@/components/providers/flow-credit-visualizer";
+import { useStudioMode } from "@/context/studio-mode-context";
 
 interface VideoTableManagerProps {
   initialItems: ContentItemRecord[];
@@ -153,11 +157,21 @@ export function VideoTableManager({
   initialScenesByContent,
   initialAssets,
 }: VideoTableManagerProps) {
+  const { isAdvance } = useStudioMode();
   const [items] = useState<ContentItemRecord[]>(initialItems);
   const [scenesByContent, setScenesByContent] = useState<
     Record<string, SceneRecord[]>
   >(initialScenesByContent);
   const [assets, setAssets] = useState<AssetRecord[]>(initialAssets);
+
+  useEffect(() => {
+    setAssets(initialAssets);
+  }, [initialAssets]);
+
+  useEffect(() => {
+    setScenesByContent(initialScenesByContent);
+  }, [initialScenesByContent]);
+
   const [selectedWeekNum, setSelectedWeekNum] = useState<number>(() => {
     for (let idx = 0; idx < initialItems.length; idx++) {
       const it = initialItems[idx]!;
@@ -197,6 +211,50 @@ export function VideoTableManager({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [targetSceneId, setTargetSceneId] = useState<string>("");
   const [syncingAllDrive, setSyncingAllDrive] = useState(false);
+  const [syncingMacroDrop, setSyncingMacroDrop] = useState(false);
+
+  const handleSyncMacroDrop = async () => {
+    setSyncingMacroDrop(true);
+    try {
+      const res = await fetch("/api/macro/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal menyinkronkan dropzone makro.");
+      }
+
+      const scenesRes = await fetch("/api/scenes?all=true", {
+        cache: "no-store",
+      });
+      if (scenesRes.ok) {
+        const sData = await scenesRes.json();
+        if (Array.isArray(sData.assets)) setAssets(sData.assets);
+        if (sData.scenesByContent) setScenesByContent(sData.scenesByContent);
+      }
+
+      if (data.scannedCount === 0) {
+        setFeedback({
+          type: "warning",
+          text: "Folder storage/macro_drops kosong. Belum ada klip video baru yang disimpan oleh makro.",
+        });
+      } else {
+        const assembledMsg =
+          data.assembledVideos?.length > 0
+            ? ` 🎉 ${data.assembledVideos.length} video final 00Final.mp4 berhasil dirakit & disinkronkan ke Google Drive!`
+            : "";
+        setFeedback({
+          type: "success",
+          text: `✅ ${data.ingestedCount} klip video baru berhasil diserap & dipetakan otomatis ke adegan!${assembledMsg}`,
+        });
+      }
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: err instanceof Error ? err.message : "Error saat sync dropzone makro.",
+      });
+    } finally {
+      setSyncingMacroDrop(false);
+    }
+  };
 
   const [feedback, setFeedback] = useState<{
     type: "success" | "error" | "warning";
@@ -208,16 +266,26 @@ export function VideoTableManager({
       (a) =>
         a.contentId === contentId &&
         a.assetType === "scene_video" &&
-        (a.sceneId === scene.id || a.id === scene.uploadedClipAssetId)
+        (a.sceneId === scene.id ||
+          a.id === scene.uploadedClipAssetId ||
+          a.originalFilename === `Bagian ${scene.sceneIndex}.mp4` ||
+          (a.metadata as Record<string, unknown> | undefined)?.partIndex ===
+            scene.sceneIndex ||
+          a.originalFilename.includes(`_Bagian_0${scene.sceneIndex}`) ||
+          a.originalFilename.includes(`SCENE_00${scene.sceneIndex}`))
     );
   };
+
+  const [programFilter, setProgramFilter] = useState<string>("all");
 
   const getWeekAndDay = (item: ContentItemRecord, idx: number) => {
     const match = item.contentCode.match(/(\d+)$/);
     const num = match?.[1] ? parseInt(match[1], 10) : idx + 1;
-    const weekNum = Math.max(1, Math.ceil(num / 7));
-    const dayNum = ((num - 1) % 7) + 1;
-    return { weekNum, dayNum };
+    const itemsPerWeek = 21;
+    const weekNum = Math.max(1, Math.ceil(num / itemsPerWeek));
+    const dayNum = Math.floor(((num - 1) % itemsPerWeek) / 3) + 1;
+    const programSlot = ((num - 1) % 3) + 1;
+    return { weekNum, dayNum, programSlot };
   };
 
   const itemsWithWeek = items.map((item, idx) => ({
@@ -228,9 +296,13 @@ export function VideoTableManager({
   const maxWeek = Math.max(1, ...itemsWithWeek.map((entry) => entry.weekNum));
   const weekOptions = Array.from({ length: maxWeek }, (_, i) => i + 1);
 
-  const filteredWeekItems = itemsWithWeek.filter(
-    (entry) => entry.weekNum === selectedWeekNum
-  );
+  const filteredWeekItems = itemsWithWeek.filter((entry) => {
+    if (entry.weekNum !== selectedWeekNum) return false;
+    if (programFilter !== "all" && entry.item.programName !== programFilter) {
+      return false;
+    }
+    return true;
+  });
 
   let totalClipsNeeded = 0;
   let totalClipsDone = 0;
@@ -534,6 +606,54 @@ export function VideoTableManager({
             ))}
           </div>
 
+          {/* Program Filter Pills */}
+          <div className="flex items-center gap-1 rounded-xl border border-stone-200 bg-stone-50 p-1">
+            <button
+              type="button"
+              onClick={() => setProgramFilter("all")}
+              className={`rounded-lg px-2.5 py-1.5 font-bold transition-colors ${
+                programFilter === "all"
+                  ? "bg-stone-900 text-white shadow-2xs"
+                  : "text-stone-600 hover:bg-stone-200"
+              }`}
+            >
+              Semua
+            </button>
+            <button
+              type="button"
+              onClick={() => setProgramFilter("Ke Dapur Yuk!")}
+              className={`rounded-lg px-2.5 py-1.5 font-bold transition-colors ${
+                programFilter === "Ke Dapur Yuk!"
+                  ? "bg-amber-600 text-white shadow-2xs"
+                  : "text-amber-800 hover:bg-amber-100"
+              }`}
+            >
+              🍳 Ke Dapur Yuk!
+            </button>
+            <button
+              type="button"
+              onClick={() => setProgramFilter("Kepikiran Aja")}
+              className={`rounded-lg px-2.5 py-1.5 font-bold transition-colors ${
+                programFilter === "Kepikiran Aja"
+                  ? "bg-indigo-600 text-white shadow-2xs"
+                  : "text-indigo-800 hover:bg-indigo-100"
+              }`}
+            >
+              🌙 Kepikiran Aja
+            </button>
+            <button
+              type="button"
+              onClick={() => setProgramFilter("Eh, Ternyata!")}
+              className={`rounded-lg px-2.5 py-1.5 font-bold transition-colors ${
+                programFilter === "Eh, Ternyata!"
+                  ? "bg-emerald-600 text-white shadow-2xs"
+                  : "text-emerald-800 hover:bg-emerald-100"
+              }`}
+            >
+              💡 Eh, Ternyata!
+            </button>
+          </div>
+
           {/* GDrive Batch Sync Button */}
           <button
             type="button"
@@ -577,6 +697,60 @@ export function VideoTableManager({
               </span>
             </button>
           ) : null}
+        </div>
+      </div>
+
+      {/* Google Flow 10-Profile Credit Visualizer */}
+      <FlowCreditVisualizer />
+
+      {/* Makro Auto-Pilot & Dropzone Hub */}
+      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-indigo-100 bg-white p-4 shadow-xs sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600">
+            <Bot className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-900">
+                Dropzone Klip Otomatis
+              </span>
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200">
+                {totalClipsDone}/{totalClipsNeeded} Bagian Selesai
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Klip baru yang disimpan otomatis dipetakan ke adegan &amp; dirakit menjadi video final.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            disabled={syncingMacroDrop}
+            onClick={handleSyncMacroDrop}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${syncingMacroDrop ? "animate-spin" : ""}`}
+            />
+            <span>
+              {syncingMacroDrop ? "Menyinkronkan..." : "Sinkronkan Dropzone Makro"}
+            </span>
+          </button>
+
+          {isAdvance && (
+            <a
+              href="/api/macro/queue"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs font-bold text-indigo-800 shadow-2xs hover:bg-indigo-50 transition-colors"
+              title="Lihat atau unduh antrean JSON task makro"
+            >
+              <FolderDown className="h-3.5 w-3.5 text-indigo-600" />
+              <span>Antrean JSON</span>
+            </a>
+          )}
         </div>
       </div>
 
@@ -736,6 +910,7 @@ function VideoContentRow({
 }) {
   const allDone = scenes.length > 0 && doneCount === scenes.length;
   const built = buildTranscriptAndPromptsFromScenes(item, scenes);
+  const { isAdvance } = useStudioMode();
 
   return (
     <>
@@ -753,6 +928,24 @@ function VideoContentRow({
         </td>
         <td className="py-3 px-4 font-bold text-stone-900 max-w-xs">
           <span className="line-clamp-2">{item.title}</span>
+          {item.programName && (
+            <span
+              className={`mt-1 inline-block rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                item.programName === "Ke Dapur Yuk!"
+                  ? "border-amber-300 bg-amber-100 text-amber-900"
+                  : item.programName === "Kepikiran Aja"
+                  ? "border-indigo-300 bg-indigo-100 text-indigo-900"
+                  : "border-emerald-300 bg-emerald-100 text-emerald-900"
+              }`}
+            >
+              {item.programName === "Ke Dapur Yuk!"
+                ? "🍳 "
+                : item.programName === "Kepikiran Aja"
+                ? "🌙 "
+                : "💡 "}
+              {item.programName}
+            </span>
+          )}
         </td>
         <td className="py-3 px-4 whitespace-nowrap">
           <StatusBadge
@@ -799,7 +992,7 @@ function VideoContentRow({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="inline-flex items-center gap-1.5">
-            {!hasVoiceAudio ? (
+            {!hasVoiceAudio && scenes.length === 0 ? (
               <Link
                 href="/production"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 font-bold text-white hover:bg-amber-600 transition-colors shadow-2xs"
@@ -829,8 +1022,6 @@ function VideoContentRow({
               <span>
                 {isExpanded
                   ? "Tutup"
-                  : !hasVoiceAudio
-                  ? "Lihat Status"
                   : `Buka ${scenes.length} Bagian`}
               </span>
               {isExpanded ? (
@@ -846,7 +1037,7 @@ function VideoContentRow({
       {isExpanded ? (
         <tr className="bg-stone-50/80">
           <td colSpan={5} className="p-4 space-y-4">
-            {!hasVoiceAudio ? (
+            {scenes.length === 0 ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-6 text-center space-y-3 shadow-2xs">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
                   <Mic className="h-6 w-6" />
@@ -856,7 +1047,7 @@ function VideoContentRow({
                     Transkrip &amp; Pemecahan Bagian Belum Tersedia
                   </h4>
                   <p className="mt-1.5 max-w-lg mx-auto text-xs text-amber-800 leading-relaxed">
-                    Sesuai alur produksi CeritaObim Studio, transkrip dan pemotongan durasi per bagian (&le;10 detik) untuk Google Flow dihasilkan secara otomatis langsung dari file audio voice over asli (MP3/WAV).
+                    Sesuai alur produksi CeritaObim Studio, transkrip dan pemotongan durasi per bagian (&le;10 detik) untuk Google Flow dihasilkan secara otomatis langsung dari narasi atau file audio voice over asli (MP3/WAV).
                   </p>
                   <p className="mt-1 text-xs font-semibold text-amber-900">
                     Silakan generate audio di menu Voice Over terlebih dahulu agar bagian-bagian klip dapat dihitung dengan durasi yang akurat.
@@ -875,78 +1066,96 @@ function VideoContentRow({
               </div>
             ) : (
               <>
-                {/* COMPACT PROMPT ACTION BAR — ZERO CLUTTER, FOKUS TOMBOL COPY */}
-                <div className="flex flex-col justify-between gap-3 rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xs sm:flex-row sm:items-center">
-                  <div>
+                {!hasVoiceAudio && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900 shadow-2xs">
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                        <Layers className="h-3.5 w-3.5 text-emerald-600" />
-                        Prompt Project ({scenes.length} Bagian • ≤10s)
+                      <Mic className="h-4 w-4 shrink-0 text-amber-600" />
+                      <span>
+                        Audio voice over belum digenerate di menu Voice Over. Klip tetap bisa digenerate/diunggah melalui makro dengan estimasi durasi. Perakitan <strong>00Final.mp4</strong> &amp; upload ke Google Drive akan otomatis berjalan segera setelah audio dibuat.
                       </span>
-                  <span className="text-xs text-stone-500 font-mono">
-                    {item.contentCode}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-stone-600">
-                  Salin <strong>Prompt Project</strong> untuk menghasilkan semua bagian sekaligus di Flow, atau gunakan <strong>Copy Prompt Bagian</strong> di tabel bawah.
-                </p>
-              </div>
+                    </div>
+                    <Link
+                      href="/production"
+                      className="font-bold text-amber-800 underline hover:text-amber-950 shrink-0"
+                    >
+                      Buat Audio Voice Over &rarr;
+                    </Link>
+                  </div>
+                )}
+                {/* COMPACT PROMPT ACTION BAR — ONLY IN ADVANCE MODE */}
+                {isAdvance && (
+                  <div className="flex flex-col justify-between gap-3 rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xs sm:flex-row sm:items-center">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                          <Layers className="h-3.5 w-3.5 text-emerald-600" />
+                          Prompt Project ({scenes.length} Bagian • ≤10s)
+                        </span>
+                        <span className="text-xs text-stone-500 font-mono">
+                          {item.contentCode}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-stone-600">
+                        Salin <strong>Prompt Project</strong> untuk menghasilkan semua bagian sekaligus di Flow.
+                      </p>
+                    </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    onCopyPrompt(
-                      built.projectPrompt,
-                      `Prompt Project (${item.contentCode} — Kerjakan semua bagian)`
-                    )
-                  }
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
-                >
-                  <Copy className="h-4 w-4" />
-                  <span>📋 Copy Prompt Project (Semua Bagian)</span>
-                </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onCopyPrompt(
+                            built.projectPrompt,
+                            `Prompt Project (${item.contentCode} — Kerjakan semua bagian)`
+                          )
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700"
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span>📋 Copy Prompt Project</span>
+                      </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    onCopyPrompt(
-                      built.transcriptFormattedText,
-                      `Transkrip Timestamp ${item.contentCode}`
-                    )
-                  }
-                  className="inline-flex items-center gap-1 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100"
-                  title="Salin teks transkrip narasi dan timestamp"
-                >
-                  <Copy className="h-3.5 w-3.5 text-stone-500" />
-                  <span>Copy Transkrip</span>
-                </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onCopyPrompt(
+                            built.transcriptFormattedText,
+                            `Transkrip Timestamp ${item.contentCode}`
+                          )
+                        }
+                        className="inline-flex items-center gap-1 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100"
+                        title="Salin teks transkrip narasi dan timestamp"
+                      >
+                        <Copy className="h-3.5 w-3.5 text-stone-500" />
+                        <span>Transkrip</span>
+                      </button>
 
-                <button
-                  type="button"
-                  disabled={isTriggering}
-                  onClick={onTrigger}
-                  className="inline-flex items-center gap-1 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100 disabled:opacity-50"
-                  title="Transkrip ulang audio narasi menjadi bagian-bagian ≤10 detik"
-                >
-                  <RefreshCw
-                    className={`h-3.5 w-3.5 ${isTriggering ? "animate-spin" : ""}`}
-                  />
-                  <span>Transkrip Ulang</span>
-                </button>
+                      <button
+                        type="button"
+                        disabled={isTriggering}
+                        onClick={onTrigger}
+                        className="inline-flex items-center gap-1 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100 disabled:opacity-50"
+                        title="Transkrip ulang audio narasi menjadi bagian-bagian ≤10 detik"
+                      >
+                        <RefreshCw
+                          className={`h-3.5 w-3.5 ${isTriggering ? "animate-spin" : ""}`}
+                        />
+                        <span>Transkrip Ulang</span>
+                      </button>
 
-                <a
-                  href={`/api/scenes/export?contentId=${encodeURIComponent(
-                    item.id
-                  )}&format=txt`}
-                  className="inline-flex items-center gap-1 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100"
-                  title="Unduh file .txt lengkap"
-                >
-                  <Download className="h-3.5 w-3.5 text-stone-600" />
-                  <span>Unduh .txt</span>
-                </a>
-              </div>
-            </div>
+                      <a
+                        href={`/api/scenes/export?contentId=${encodeURIComponent(
+                          item.id
+                        )}&format=txt`}
+                        className="inline-flex items-center gap-1 rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100"
+                        title="Unduh file .txt lengkap"
+                      >
+                        <Download className="h-3.5 w-3.5 text-stone-600" />
+                        <span>.txt</span>
+                      </a>
+                    </div>
+                  </div>
+                )}
 
             {/* MASTER 00FINAL VIDEO STATUS & ACTION BANNER */}
             <FinalVideoAssemblyBanner

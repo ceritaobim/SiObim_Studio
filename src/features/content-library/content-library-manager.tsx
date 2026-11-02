@@ -19,6 +19,7 @@ import type {
   ContentItemRecord,
   ContentStatus,
   DuplicateTopicWarning,
+  ObimProgramName,
   StorageBackendStatus,
   VerificationStatus,
 } from "@/types/domain";
@@ -64,6 +65,7 @@ export function ContentLibraryManager({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [verificationFilter, setVerificationFilter] = useState<string>("all");
+  const [programFilter, setProgramFilter] = useState<string>("all");
 
   // Create form state
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -72,12 +74,14 @@ export function ContentLibraryManager({
     const nextNum = String(initialItems.length + 1).padStart(3, "0");
     return `CO-2026-${nextNum}`;
   });
+  const [newProgramName, setNewProgramName] =
+    useState<ObimProgramName>("Ke Dapur Yuk!");
   const [newTitle, setNewTitle] = useState("");
-  const [newCategory, setNewCategory] = useState("Sains & Keingintahuan");
+  const [newCategory, setNewCategory] = useState("Kuliner & Makanan");
   const [newTopic, setNewTopic] = useState("");
   const [newHook, setNewHook] = useState("");
   const [newNarration, setNewNarration] = useState("");
-  const [newDuration, setNewDuration] = useState(70);
+  const [newDuration, setNewDuration] = useState(28);
   const [newClaimsText, setNewClaimsText] = useState("");
   const [newSourceUrlsText, setNewSourceUrlsText] = useState("");
 
@@ -131,6 +135,9 @@ export function ContentLibraryManager({
       ) {
         return false;
       }
+      if (programFilter !== "all" && item.programName !== programFilter) {
+        return false;
+      }
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -140,7 +147,7 @@ export function ContentLibraryManager({
         item.category.toLowerCase().includes(q)
       );
     });
-  }, [items, searchQuery, statusFilter, verificationFilter]);
+  }, [items, searchQuery, statusFilter, verificationFilter, programFilter]);
 
   const handleCreateContent = async (e: FormEvent) => {
     e.preventDefault();
@@ -162,12 +169,13 @@ export function ContentLibraryManager({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contentCode: newCode.trim().toUpperCase(),
+          programName: newProgramName,
           title: newTitle.trim(),
           category: newCategory.trim(),
           topic: newTopic.trim(),
           hook: newHook.trim(),
           narration: newNarration.trim(),
-          targetDurationSeconds: Number(newDuration) || 70,
+          targetDurationSeconds: Number(newDuration) || 28,
           factualClaims: claims,
           sourceUrls: urls,
           verificationStatus:
@@ -624,7 +632,7 @@ export function ContentLibraryManager({
           badge={<StatusBadge label="Append-Only" variant="info" />}
         >
           <form onSubmit={handleCreateContent} className="space-y-3.5 text-xs">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div>
                 <label
                   htmlFor="newCode"
@@ -640,6 +648,26 @@ export function ContentLibraryManager({
                   onChange={(e) => setNewCode(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 font-mono text-stone-900"
                 />
+              </div>
+              <div>
+                <label
+                  htmlFor="newProgramName"
+                  className="block font-medium text-stone-700"
+                >
+                  Program Resmi
+                </label>
+                <select
+                  id="newProgramName"
+                  value={newProgramName}
+                  onChange={(e) =>
+                    setNewProgramName(e.target.value as ObimProgramName)
+                  }
+                  className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-stone-900"
+                >
+                  <option value="Ke Dapur Yuk!">🍳 Ke Dapur Yuk!</option>
+                  <option value="Kepikiran Aja">🌙 Kepikiran Aja</option>
+                  <option value="Eh, Ternyata!">💡 Eh, Ternyata!</option>
+                </select>
               </div>
               <div>
                 <label
@@ -668,7 +696,7 @@ export function ContentLibraryManager({
                   id="newDuration"
                   type="number"
                   min={15}
-                  max={180}
+                  max={60}
                   required
                   value={newDuration}
                   onChange={(e) => setNewDuration(Number(e.target.value))}
@@ -943,6 +971,58 @@ export function ContentLibraryManager({
         </SectionCard>
       ) : null}
 
+      {/* Program Filter Pills */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-stone-600">Filter Program:</span>
+        <button
+          type="button"
+          onClick={() => setProgramFilter("all")}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            programFilter === "all"
+              ? "border-stone-800 bg-stone-900 text-white shadow-xs"
+              : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+          }`}
+        >
+          Semua Program ({items.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setProgramFilter("Ke Dapur Yuk!")}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            programFilter === "Ke Dapur Yuk!"
+              ? "border-amber-600 bg-amber-600 text-white shadow-xs"
+              : "border-amber-200 bg-amber-50/70 text-amber-900 hover:bg-amber-100"
+          }`}
+        >
+          🍳 Ke Dapur Yuk! (
+          {items.filter((i) => i.programName === "Ke Dapur Yuk!").length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setProgramFilter("Kepikiran Aja")}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            programFilter === "Kepikiran Aja"
+              ? "border-indigo-600 bg-indigo-600 text-white shadow-xs"
+              : "border-indigo-200 bg-indigo-50/70 text-indigo-900 hover:bg-indigo-100"
+          }`}
+        >
+          🌙 Kepikiran Aja (
+          {items.filter((i) => i.programName === "Kepikiran Aja").length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setProgramFilter("Eh, Ternyata!")}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            programFilter === "Eh, Ternyata!"
+              ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
+              : "border-emerald-200 bg-emerald-50/70 text-emerald-900 hover:bg-emerald-100"
+          }`}
+        >
+          💡 Eh, Ternyata! (
+          {items.filter((i) => i.programName === "Eh, Ternyata!").length})
+        </button>
+      </div>
+
       {/* Search & Filters */}
       <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-3.5 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -1018,6 +1098,24 @@ export function ContentLibraryManager({
                     <span className="rounded bg-amber-100 px-2 py-0.5 font-mono text-xs font-bold text-amber-900">
                       {item.contentCode}
                     </span>
+                    {item.programName && (
+                      <span
+                        className={`rounded border px-2 py-0.5 text-xs font-semibold ${
+                          item.programName === "Ke Dapur Yuk!"
+                            ? "border-amber-300 bg-amber-100 text-amber-900"
+                            : item.programName === "Kepikiran Aja"
+                            ? "border-indigo-300 bg-indigo-100 text-indigo-900"
+                            : "border-emerald-300 bg-emerald-100 text-emerald-900"
+                        }`}
+                      >
+                        {item.programName === "Ke Dapur Yuk!"
+                          ? "🍳 "
+                          : item.programName === "Kepikiran Aja"
+                          ? "🌙 "
+                          : "💡 "}
+                        {item.programName}
+                      </span>
+                    )}
                     {item.isDemo ? (
                       <StatusBadge
                         label="DATA CONTOH / DEMO"

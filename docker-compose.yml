@@ -1,0 +1,17 @@
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ceritaobim-studio
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    volumes:
+      - ./data-storage:/app/.data
+      - ./macro-drops:/app/storage/macro_drops
+    environment:
+      - NODE_ENV=production
+      - PORT=3000

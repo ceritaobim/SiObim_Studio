@@ -697,10 +697,18 @@ export function buildInitialAnalytics(
   });
 }
 
+const storeCacheByPath = new Map<string, { data: LocalStoreData; mtime: number }>();
+
 function readLocalStore(storePath = DEFAULT_STORE_PATH): LocalStoreData {
+  const normPath = path.resolve(storePath);
   try {
-    if (fs.existsSync(storePath)) {
-      const raw = fs.readFileSync(storePath, "utf8");
+    if (fs.existsSync(normPath)) {
+      const stats = fs.statSync(normPath);
+      const cached = storeCacheByPath.get(normPath);
+      if (cached && stats.mtimeMs === cached.mtime) {
+        return cached.data;
+      }
+      const raw = fs.readFileSync(normPath, "utf8");
       const parsed = JSON.parse(raw) as Partial<LocalStoreData>;
       if (
         parsed &&
@@ -713,7 +721,7 @@ function readLocalStore(storePath = DEFAULT_STORE_PATH): LocalStoreData {
             ? parsed.contentAnalytics
             : buildInitialAnalytics(parsed.contentItems, DEFAULT_OWNER_ID);
 
-        return {
+        const loaded: LocalStoreData = {
           settingsByOwner: parsed.settingsByOwner,
           contentItems: parsed.contentItems,
           batches: Array.isArray(parsed.batches) ? parsed.batches : [],
@@ -728,15 +736,18 @@ function readLocalStore(storePath = DEFAULT_STORE_PATH): LocalStoreData {
             : [],
           contentAnalytics,
         };
+        storeCacheByPath.set(normPath, { data: loaded, mtime: stats.mtimeMs });
+        return loaded;
       }
     }
   } catch {
     // Initialize fresh store if missing or corrupted
   }
 
-  const initialItems = buildInitialDemoItems(DEFAULT_OWNER_ID);
-  const initialScenes = buildInitialWeek1Scenes(initialItems);
-  const initialAnalytics = buildInitialAnalytics(initialItems, DEFAULT_OWNER_ID);
+  const isTestOrTemp = normPath !== path.resolve(DEFAULT_STORE_PATH);
+  const initialItems = isTestOrTemp ? buildInitialDemoItems(DEFAULT_OWNER_ID) : [];
+  const initialScenes = isTestOrTemp ? buildInitialWeek1Scenes(initialItems) : [];
+  const initialAnalytics = isTestOrTemp ? buildInitialAnalytics(initialItems, DEFAULT_OWNER_ID) : [];
 
   const initial: LocalStoreData = {
     settingsByOwner: {
@@ -757,7 +768,13 @@ function readLocalStore(storePath = DEFAULT_STORE_PATH): LocalStoreData {
     publications: [],
     contentAnalytics: initialAnalytics,
   };
-  writeLocalStore(initial, storePath);
+  writeLocalStore(initial, normPath);
+  try {
+    const mtime = fs.existsSync(normPath) ? fs.statSync(normPath).mtimeMs : Date.now();
+    storeCacheByPath.set(normPath, { data: initial, mtime });
+  } catch {
+    storeCacheByPath.set(normPath, { data: initial, mtime: Date.now() });
+  }
   return initial;
 }
 
@@ -801,12 +818,19 @@ function writeLocalStore(
   data: LocalStoreData,
   storePath = DEFAULT_STORE_PATH
 ): void {
+  const normPath = path.resolve(storePath);
   try {
-    const dir = path.dirname(storePath);
+    const dir = path.dirname(normPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(storePath, JSON.stringify(data, null, 2), "utf8");
+    fs.writeFileSync(normPath, JSON.stringify(data, null, 2), "utf8");
+    try {
+      const mtime = fs.statSync(normPath).mtimeMs;
+      storeCacheByPath.set(normPath, { data, mtime });
+    } catch {
+      storeCacheByPath.set(normPath, { data, mtime: Date.now() });
+    }
   } catch {
     // In serverless environments like Vercel, the local root file system is read-only.
     // Suppress filesystem write errors so operations on Supabase still succeed smoothly.
@@ -911,6 +935,9 @@ function mapSupabaseContentRow(
       "idea") as ContentItemRecord["contentStatus"],
     sourceBatchId: row.source_batch_id ? String(row.source_batch_id) : null,
     isDemo: Boolean(row.is_demo ?? false),
+    scheduledPublishAt: row.scheduled_publish_at
+      ? String(row.scheduled_publish_at)
+      : null,
     publishedAt: row.published_at ? String(row.published_at) : null,
     createdAt: String(row.created_at ?? new Date().toISOString()),
     updatedAt: String(row.updated_at ?? new Date().toISOString()),
@@ -1256,72 +1283,17 @@ export async function listContentItems(
               )
           );
 
-        if (data.length === 0 || hasOnlyLegacyDemo) {
-          if (hasOnlyLegacyDemo) {
-            await supabase
-              .from("content_items")
-              .delete()
-              .eq("owner_id", ownerId)
-              .eq("is_demo", true);
-          }
-
-          const week1Items = buildInitialDemoItems(ownerId);
-          const week1Rows = week1Items.map((d) => ({
-            owner_id: ownerId,
-            content_code: d.contentCode,
-            title: d.title,
-            category: d.category,
-            topic: d.topic,
-            hook: d.hook,
-            narration: d.narration,
-            cta: d.cta,
-            tiktok_caption: d.tiktokCaption,
-            youtube_description: d.youtubeDescription,
-            instagram_caption: d.instagramCaption,
-            notes: d.notes,
-            target_duration_seconds: d.targetDurationSeconds,
-            factual_claims: d.factualClaims,
-            source_urls: d.sourceUrls,
-            verification_status: d.verificationStatus,
-            content_status: d.contentStatus,
-            is_demo: false,
-          }));
-          const { data: seeded } = await supabase
+        if (hasOnlyLegacyDemo) {
+          await supabase
             .from("content_items")
-            .upsert(week1Rows, { onConflict: "owner_id,content_code" })
-            .select("*");
-          if (Array.isArray(seeded)) {
-            const mappedSeeded = seeded.map((r) =>
-              mapSupabaseContentRow(r as Record<string, unknown>)
-            );
-            // Also seed the initial 10-second Week 1 scenes into Supabase
-            const initialScenes = buildInitialWeek1Scenes(mappedSeeded);
-            const sceneRows = initialScenes.map((sc) => ({
-              id: sc.id,
-              content_id: sc.contentId,
-              scene_index: sc.sceneIndex,
-              start_ms: sc.startMs,
-              end_ms: sc.endMs,
-              narration_text: sc.narrationText,
-              visual_action: sc.visualAction,
-              camera_direction: sc.cameraDirection,
-              continuity_notes: sc.continuityNotes,
-              prompt_text: sc.promptText,
-              timestamp_status: sc.timestampStatus,
-              scene_status: sc.sceneStatus,
-              source_alignment_metadata: {
-                expectedFilename: sc.expectedFilename,
-                uploadedClipAssetId: null,
-              },
-            }));
-            await supabase
-              .from("scenes")
-              .upsert(sceneRows, { onConflict: "content_id,scene_index" });
+            .delete()
+            .eq("owner_id", ownerId)
+            .eq("is_demo", true);
+          return [];
+        }
 
-            return mappedSeeded.sort((a, b) =>
-              a.contentCode.localeCompare(b.contentCode)
-            );
-          }
+        if (data.length === 0) {
+          return [];
         }
         const supabaseMapped = data.map((r) =>
           mapSupabaseContentRow(r as Record<string, unknown>)
@@ -1473,6 +1445,7 @@ export async function createContentItem(
         content_status: input.contentStatus,
         source_batch_id: input.sourceBatchId ?? null,
         is_demo: Boolean(input.isDemo),
+        scheduled_publish_at: input.scheduledPublishAt ?? null,
         published_at: isValidIsoTimestamp ? input.publishedAt : null,
       };
 
@@ -1535,6 +1508,7 @@ export async function createContentItem(
     contentStatus: input.contentStatus,
     sourceBatchId: input.sourceBatchId ?? null,
     isDemo: Boolean(input.isDemo),
+    scheduledPublishAt: input.scheduledPublishAt ?? null,
     publishedAt: input.publishedAt ?? null,
     createdAt: codeConflict?.createdAt ?? now,
     updatedAt: now,
@@ -1599,6 +1573,13 @@ export async function updateContentItem(
           content_status: input.contentStatus ?? mappedExisting.contentStatus,
         };
 
+        if (input.scheduledPublishAt !== undefined) {
+          updatePayload.scheduled_publish_at = input.scheduledPublishAt;
+        }
+        if (input.publishedAt !== undefined) {
+          updatePayload.published_at = input.publishedAt;
+        }
+
         const { data: updated, error: updateError } = await supabase
           .from("content_items")
           .update(updatePayload)
@@ -1649,6 +1630,12 @@ export async function updateContentItem(
     sourceUrls: nextSourceUrls,
     verificationStatus: safeVerification,
     contentStatus: input.contentStatus ?? target.contentStatus,
+    scheduledPublishAt:
+      input.scheduledPublishAt !== undefined
+        ? input.scheduledPublishAt
+        : target.scheduledPublishAt,
+    publishedAt:
+      input.publishedAt !== undefined ? input.publishedAt : target.publishedAt,
     updatedAt: new Date().toISOString(),
   };
 
@@ -1987,9 +1974,10 @@ export async function commitApprovedBatchProposals(
       includeArchived: true,
     });
 
+    const itemsPerWeek = 21;
     let desiredCode: string;
     if (requestedWeekNum && requestedWeekNum >= 1) {
-      const targetSeq = (requestedWeekNum - 1) * 7 + daySlotIndex + 1;
+      const targetSeq = (requestedWeekNum - 1) * itemsPerWeek + daySlotIndex + 1;
       desiredCode = `CO-${year}-${String(targetSeq).padStart(3, "0")}`;
       // If this exact slot code already exists, find the next free code in or after this week
       const slotExists = allCurrentItems.some(
@@ -2013,9 +2001,11 @@ export async function commitApprovedBatchProposals(
     const seqNum = seqMatch?.[1]
       ? parseInt(seqMatch[1], 10)
       : allCurrentItems.length + 1;
-    const dayInWeek = ((seqNum - 1) % 7) + 1;
+    const posInWeek = (seqNum - 1) % itemsPerWeek;
+    const dayInWeek = Math.floor(posInWeek / 3) + 1;
+    const programSlot = (posInWeek % 3) + 1;
     const weekNumber =
-      requestedWeekNum ?? Math.max(1, Math.ceil(seqNum / 7));
+      requestedWeekNum ?? Math.max(1, Math.ceil(seqNum / itemsPerWeek));
 
     const created = await createContentItem(
       ownerId,
@@ -2038,7 +2028,8 @@ export async function commitApprovedBatchProposals(
         contentStatus: "script_approved",
         sourceBatchId: targetBatch.id,
         isDemo: false,
-        publishedAt: `Week ${weekNumber} • Hari ${dayInWeek} - 19:00 WIB`,
+        scheduledPublishAt: prop.scheduledPublishAt ?? null,
+        publishedAt: `Week ${weekNumber} • Hari ${dayInWeek} (P${programSlot}) - 19:00 WIB`,
       },
       options
     );
@@ -3041,11 +3032,15 @@ export async function generateAndSaveScenePrompts(
   const hasOverTenSecondsPart = scenes.some(
     (sc) => Math.round((sc.endMs - sc.startMs) / 1000) > 10
   );
+  const hasFragmentedParts = scenes.some(
+    (sc, idx) => idx < scenes.length - 1 && Math.round((sc.endMs - sc.startMs) / 1000) < 8
+  );
   const shouldTranscribeFromAudio =
     Boolean(latestVoiceAsset?.storagePath) &&
     (Boolean(options?.retranscribeAudio) ||
       scenes.length === 0 ||
       hasOverTenSecondsPart ||
+      hasFragmentedParts ||
       scenes.every((sc) => sc.timestampStatus === "estimated"));
 
   if (shouldTranscribeFromAudio && latestVoiceAsset?.storagePath) {
@@ -3082,8 +3077,8 @@ export async function generateAndSaveScenePrompts(
     }
   }
 
-  // If scenes still haven't been segmented yet, segment using <=9s spans
-  if (scenes.length === 0) {
+  // If scenes still haven't been segmented yet or were fragmented, segment strictly targeting 10s spans
+  if (scenes.length === 0 || hasOverTenSecondsPart || hasFragmentedParts) {
     const fallbackDurationMs =
       latestVoiceAsset?.durationMs || content.targetDurationSeconds * 1000;
     scenes = segmentNarrationIntoScenes({
@@ -3092,8 +3087,33 @@ export async function generateAndSaveScenePrompts(
       narrationText: content.narration,
       timestampStatus: "estimated",
       totalAudioDurationMs: fallbackDurationMs,
-      minSceneSeconds: settings.targetSceneSecondsMin,
-      maxSceneSeconds: Math.min(9, settings.targetSceneSecondsMax),
+      minSceneSeconds: 8,
+      maxSceneSeconds: 10,
+    });
+  }
+
+  // Re-link any existing scene_video assets so prompt regenerations never lose uploaded clip bindings
+  const existingSceneClips = assets.filter((a) => a.assetType === "scene_video");
+  if (existingSceneClips.length > 0) {
+    scenes = scenes.map((sc) => {
+      if (sc.uploadedClipAssetId) return sc;
+      const matched = existingSceneClips.find(
+        (a) =>
+          a.sceneId === sc.id ||
+          a.originalFilename === `Bagian ${sc.sceneIndex}.mp4` ||
+          (a.metadata as Record<string, unknown> | undefined)?.partIndex ===
+            sc.sceneIndex ||
+          a.originalFilename.includes(`_Bagian_0${sc.sceneIndex}`) ||
+          a.originalFilename.includes(`SCENE_00${sc.sceneIndex}`)
+      );
+      if (matched) {
+        return {
+          ...sc,
+          uploadedClipAssetId: matched.id,
+          sceneStatus: "clip_uploaded" as const,
+        };
+      }
+      return sc;
     });
   }
 
@@ -3843,12 +3863,22 @@ export async function runContentVideoAssembly(
   try {
     const outputFilename = `${content.contentCode.toUpperCase()}_MASTER_9x16.mp4`;
     const assemblyResult = executeVideoAssembly(manifest, mediaDir, outputFilename);
-    // Also save a local 00Final.mp4 copy for convenience
+    const safeTitle = (content.title || "").replace(/[?:/*"<>|\\]/g, "").trim();
+    const finalFilename = `final-${safeTitle}.mp4`;
+
+    // Also save local copies for convenience (00Final.mp4 and final-[Judul].mp4)
     try {
       fs.copyFileSync(
         assemblyResult.outputFilePath,
         path.join(mediaDir, "00Final.mp4")
       );
+      fs.copyFileSync(
+        assemblyResult.outputFilePath,
+        path.join(mediaDir, finalFilename)
+      );
+      const ownerFinalDir = path.resolve(process.cwd(), "00.FolderOwner", "VIDEO_FINAL_MASTER");
+      if (!fs.existsSync(ownerFinalDir)) fs.mkdirSync(ownerFinalDir, { recursive: true });
+      fs.copyFileSync(assemblyResult.outputFilePath, path.join(ownerFinalDir, finalFilename));
     } catch {
       // ignore
     }
@@ -3861,7 +3891,7 @@ export async function runContentVideoAssembly(
       sceneId: null,
       assetType: "final_video",
       storagePath: assemblyResult.outputFilePath,
-      originalFilename: outputFilename,
+      originalFilename: finalFilename,
       mimeType: "video/mp4",
       sizeBytes: assemblyResult.outputBuffer.byteLength,
       durationMs: manifest.totalExpectedVideoDurationMs,
@@ -3886,7 +3916,7 @@ export async function runContentVideoAssembly(
       createdAt: now,
     };
 
-    // Auto-upload 00Final.mp4 directly to the content folder on Google Drive
+    // Auto-upload final video directly to the content folder on Google Drive
     try {
       const settings = await getProjectSettings(ownerId, options);
       const webAppUrl = (
@@ -3903,7 +3933,7 @@ export async function runContentVideoAssembly(
           item: content,
           files: [
             {
-              filename: "00Final.mp4",
+              filename: finalFilename,
               mimeType: "video/mp4",
               base64Data: assemblyResult.outputBuffer.toString("base64"),
             },

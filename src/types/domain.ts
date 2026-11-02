@@ -83,11 +83,14 @@ export interface ProjectSettingsSummary {
   updatedAt?: string;
 }
 
+export type ObimProgramName = "Ke Dapur Yuk!" | "Kepikiran Aja" | "Eh, Ternyata!";
+
 export interface ContentItemRecord {
   id: string;
   ownerId: string;
   contentCode: string;
   title: string;
+  programName?: ObimProgramName;
   category: string;
   topic: string;
   hook: string;
@@ -104,6 +107,7 @@ export interface ContentItemRecord {
   contentStatus: ContentStatus;
   sourceBatchId: string | null;
   isDemo: boolean;
+  scheduledPublishAt?: string | null;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -123,6 +127,7 @@ export interface WeeklyPlanProposal {
   proposalId: string;
   suggestedCode: string;
   title: string;
+  programName?: ObimProgramName;
   category: string;
   topic: string;
   hook: string;
@@ -137,6 +142,7 @@ export interface WeeklyPlanProposal {
   verificationStatus: VerificationStatus;
   decision: ProposalDecision;
   duplicateWarnings: DuplicateTopicWarning[];
+  scheduledPublishAt?: string | null;
   committedContentId?: string | null;
 }
 
@@ -165,6 +171,22 @@ export interface WordAlignmentSpan {
   endMs: number;
 }
 
+export type SceneEntityRole =
+  | "THUMBNAIL_HOOK"
+  | "SCIENCE_MECHANISM"
+  | "PRACTICAL_INSIGHT"
+  | "DEBATE_CLOSING";
+
+export interface SceneEntityAttributes {
+  role: SceneEntityRole;
+  roleLabel: string;
+  topicProps: string[];
+  characterStance: string;
+  origamiEnvironment: string;
+  actionChoreography: string;
+  coverBannerText?: string;
+}
+
 export interface SceneRecord {
   id: string;
   contentId: string;
@@ -183,6 +205,7 @@ export interface SceneRecord {
   sceneStatus: "segmented" | "prompt_ready" | "clip_uploaded" | "validated";
   durationFlag: "ok" | "too_short" | "too_long";
   uploadedClipAssetId?: string | null;
+  entityAttributes?: SceneEntityAttributes;
   createdAt: string;
   updatedAt: string;
 }

@@ -121,15 +121,18 @@ export function buildContentDriveFolderNames(
   const seqNum = codeNumMatch?.[1]
     ? parseInt(codeNumMatch[1], 10)
     : fallbackIndex + 1;
-  const weekNumber = Math.max(1, Math.ceil(seqNum / 7));
-  const dayInWeek = ((seqNum - 1) % 7) + 1;
+  const itemsPerWeek = 21;
+  const weekNumber = Math.max(1, Math.ceil(seqNum / itemsPerWeek));
+  const posInWeek = (seqNum - 1) % itemsPerWeek;
+  const dayInWeek = Math.floor(posInWeek / 3) + 1;
+  const programSlot = (posInWeek % 3) + 1;
   const safeTitle = item.title
     .replace(/[^a-zA-Z0-9\s-_]/g, "")
     .trim()
     .slice(0, 48);
 
   const weekFolderName = `Week_${String(weekNumber).padStart(2, "0")}`;
-  const dayFolderName = `Hari_${String(dayInWeek).padStart(2, "0")}_${item.contentCode}_${safeTitle}`;
+  const dayFolderName = `Hari_${String(dayInWeek).padStart(2, "0")}_P${programSlot}_${item.contentCode}_${safeTitle}`;
 
   return {
     weekNumber,
