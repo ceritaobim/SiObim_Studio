@@ -238,3 +238,120 @@ export async function publishVideoToBufferChannel(params: {
     error: data.errors?.[0]?.message || "Gagal membuat postingan di Buffer.",
   };
 }
+
+/**
+ * Updates the scheduled time (dueAt) or caption of an existing post in Buffer.
+ * This prevents creating duplicate posts when creators adjust their schedule.
+ */
+export async function updateBufferPostSchedule(params: {
+  postId: string;
+  dueAt: string;
+  text?: string;
+}): Promise<{ ok: boolean; postId?: string; dueAt?: string; error?: string }> {
+  const token = getBufferToken();
+
+  const query = `
+    mutation EditPost($input: EditPostInput!) {
+      editPost(input: $input) {
+        ... on PostActionSuccess {
+          post {
+            id
+            status
+            dueAt
+          }
+        }
+        ... on MutationError {
+          message
+        }
+      }
+    }
+  `;
+
+  const input: Record<string, unknown> = {
+    id: params.postId,
+    dueAt: params.dueAt,
+    mode: "customScheduled",
+  };
+  if (params.text) {
+    input.text = params.text;
+  }
+
+  const res = await fetch("https://api.buffer.com", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query, variables: { input } }),
+  });
+
+  const data = await res.json();
+  if (data.errors && data.errors.length > 0) {
+    return {
+      ok: false,
+      error: data.errors.map((e: { message?: string }) => e.message || "Error").join(" | "),
+    };
+  }
+
+  const result = data.data?.editPost;
+  if (result?.message) {
+    return { ok: false, error: result.message };
+  }
+
+  if (result?.post?.id) {
+    return {
+      ok: true,
+      postId: result.post.id,
+      dueAt: result.post.dueAt,
+    };
+  }
+
+  return { ok: false, error: "Gagal memperbarui jadwal postingan di Buffer." };
+}
+
+/**
+ * Deletes a scheduled post from Buffer queue.
+ */
+export async function deleteBufferPost(postId: string): Promise<{ ok: boolean; error?: string }> {
+  const token = getBufferToken();
+
+  const query = `
+    mutation DeletePost($input: DeletePostInput!) {
+      deletePost(input: $input) {
+        ... on DeletePostSuccess {
+          id
+        }
+        ... on VoidMutationError {
+          message
+        }
+      }
+    }
+  `;
+
+  const res = await fetch("https://api.buffer.com", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      query,
+      variables: { input: { id: postId } },
+    }),
+  });
+
+  const data = await res.json();
+  if (data.errors && data.errors.length > 0) {
+    return {
+      ok: false,
+      error: data.errors.map((e: { message?: string }) => e.message || "Error").join(" | "),
+    };
+  }
+
+  const result = data.data?.deletePost;
+  if (result?.message) {
+    return { ok: false, error: result.message };
+  }
+
+  return { ok: true };
+}

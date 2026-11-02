@@ -11,6 +11,8 @@ import { createServerSupabaseAdminClient } from "@/lib/auth/owner-auth";
 import {
   getBufferConnectedChannels,
   publishVideoToBufferChannel,
+  updateBufferPostSchedule,
+  deleteBufferPost,
   type BufferPostResult,
 } from "./buffer-client";
 
@@ -142,8 +144,10 @@ export async function publishContentToBuffer(
   const defaultCaption =
     `${content.title}\n\n${content.hook || ""}\n\n${defaultHashtags}`.trim();
 
-  // 5. Post to each matching channel
+  // 5. Post to each matching channel (with duplicate safeguard)
+  const existingPubs = await listOrInitializePublications(ownerId, contentId).catch(() => []);
   const results: BufferPostResult[] = [];
+
   for (const ch of matchingChannels) {
     try {
       let channelText = customCaption?.trim();
@@ -157,6 +161,36 @@ export async function publishContentToBuffer(
         } else {
           channelText = defaultCaption;
         }
+      }
+
+      const existingPub = existingPubs.find(
+        (p) => p.platform.toLowerCase() === ch.service.toLowerCase()
+      );
+      const existingPostId = existingPub?.externalPostUrl
+        ? existingPub.externalPostUrl.split("/").pop()?.trim()
+        : undefined;
+
+      // ANTI-DUPLICATE SAFEGUARD: If this post was ALREADY scheduled in Buffer,
+      // UPDATE the existing Buffer post's dueAt instead of creating a duplicate!
+      if (!params.publishNow && existingPub?.publishStatus === "scheduled" && existingPostId) {
+        const updateRes = await updateBufferPostSchedule({
+          postId: existingPostId,
+          dueAt: scheduledTime || existingPub.scheduledAt || new Date(Date.now() + 86400000).toISOString(),
+          text: channelText,
+        });
+
+        if (updateRes.ok) {
+          results.push({
+            ok: true,
+            channelId: ch.id,
+            service: ch.service,
+            postId: existingPostId,
+            status: "scheduled",
+            dueAt: updateRes.dueAt || scheduledTime,
+          });
+          continue;
+        }
+        // If update failed (e.g. post was deleted externally on Buffer), proceed to recreate
       }
 
       const res = await publishVideoToBufferChannel({
@@ -222,5 +256,107 @@ export async function publishContentToBuffer(
     results,
     successCount,
     failureCount,
+  };
+}
+
+/**
+ * Reschedules all active scheduled posts of a content item in Buffer.
+ * Updates dueAt on Buffer and keeps database records in sync.
+ */
+export async function rescheduleContentInBuffer(params: {
+  ownerId: string;
+  contentId: string;
+  newScheduledTime: string;
+}): Promise<{ ok: boolean; updatedCount: number; errors: string[] }> {
+  const { ownerId, contentId, newScheduledTime } = params;
+  const pubs = await listOrInitializePublications(ownerId, contentId).catch(() => []);
+  const scheduledPubs = pubs.filter(
+    (p) => p.publishStatus === "scheduled" && p.externalPostUrl
+  );
+
+  let updatedCount = 0;
+  const errors: string[] = [];
+
+  for (const pub of scheduledPubs) {
+    const postId = pub.externalPostUrl?.split("/").pop()?.trim();
+    if (!postId) continue;
+
+    const res = await updateBufferPostSchedule({
+      postId,
+      dueAt: newScheduledTime,
+    });
+
+    if (res.ok) {
+      updatedCount++;
+      await updatePlatformPublication(ownerId, {
+        publicationId: pub.id,
+        scheduledAt: newScheduledTime,
+      });
+    } else if (res.error) {
+      errors.push(`${pub.platform}: ${res.error}`);
+    }
+  }
+
+  // Update content item scheduledPublishAt
+  await updateContentItem(ownerId, {
+    id: contentId,
+    scheduledPublishAt: newScheduledTime,
+  });
+
+  return {
+    ok: updatedCount > 0 || errors.length === 0,
+    updatedCount,
+    errors,
+  };
+}
+
+/**
+ * Cancels scheduled posts for a content item in Buffer.
+ * Calls Buffer deletePost mutation and resets database status to ready_to_publish.
+ */
+export async function cancelScheduledContentInBuffer(params: {
+  ownerId: string;
+  contentId: string;
+}): Promise<{ ok: boolean; deletedCount: number; errors: string[] }> {
+  const { ownerId, contentId } = params;
+  const pubs = await listOrInitializePublications(ownerId, contentId).catch(() => []);
+  const scheduledPubs = pubs.filter(
+    (p) => p.publishStatus === "scheduled" && p.externalPostUrl
+  );
+
+  let deletedCount = 0;
+  const errors: string[] = [];
+
+  for (const pub of scheduledPubs) {
+    const postId = pub.externalPostUrl?.split("/").pop()?.trim();
+    if (!postId) continue;
+
+    const res = await deleteBufferPost(postId);
+    if (res.ok) {
+      deletedCount++;
+    } else if (res.error) {
+      errors.push(`${pub.platform}: ${res.error}`);
+    }
+
+    // Reset platform publication status in database
+    await updatePlatformPublication(ownerId, {
+      publicationId: pub.id,
+      publishStatus: "ready_for_manual_upload",
+      scheduledAt: null,
+      externalPostUrl: "",
+    });
+  }
+
+  // Reset content item status in database
+  await updateContentItem(ownerId, {
+    id: contentId,
+    contentStatus: "ready_to_publish",
+    scheduledPublishAt: null,
+  });
+
+  return {
+    ok: true,
+    deletedCount,
+    errors,
   };
 }

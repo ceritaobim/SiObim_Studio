@@ -34,6 +34,7 @@ import {
   VolumeX,
   Copy,
   Check,
+  Trash2,
 } from "lucide-react";
 import type {
   ContentItemRecord,
@@ -382,6 +383,7 @@ export function PublishingManager({
     Record<string, { date: string; time: string; isCustomTime: boolean }>
   >({});
   const [savingScheduleId, setSavingScheduleId] = useState<string | null>(null);
+  const [cancelingScheduleId, setCancelingScheduleId] = useState<string | null>(null);
   const [publishingMap, setPublishingMap] = useState<
     Record<string, "now" | "schedule">
   >({});
@@ -428,7 +430,7 @@ export function PublishingManager({
     setEditingScheduleId(item.id);
   };
 
-  // Helper: Save smart slot schedule inline
+  // Helper: Save smart slot schedule inline (updates Buffer dueAt if already scheduled!)
   const handleSaveSlotSchedule = async (contentId: string) => {
     const slotState = activeSlotMap[contentId];
     if (!slotState || !slotState.date || !slotState.time) return;
@@ -436,18 +438,52 @@ export function PublishingManager({
     setSavingScheduleId(contentId);
     try {
       const newIso = `${slotState.date}T${slotState.time}:00+07:00`;
-      const res = await fetch("/api/content", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: contentId,
-          scheduledPublishAt: newIso,
-        }),
-      });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Gagal menyimpan jadwal tayang.");
+      // Cek apakah konten ini SUDAH terjadwal di antrean Buffer
+      const targetItemPubs = publications.filter(
+        (p) =>
+          p.contentId === contentId &&
+          p.publishStatus === "scheduled" &&
+          p.externalPostUrl
+      );
+
+      if (targetItemPubs.length > 0) {
+        // Panggil endpoint reschedule untuk mengupdate dueAt postingan yang sudah ada tanpa mendobelkan
+        const res = await fetch("/api/buffer/schedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "reschedule",
+            contentId,
+            newScheduledTime: newIso,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Gagal memperbarui jadwal di Buffer.");
+        }
+        setFeedback({
+          type: "success",
+          text: `🎉 Jadwal di Buffer berhasil diperbarui ke ${formatPublishSchedule(newIso).formattedDateTime}! (Tidak ada duplikasi)`,
+        });
+      } else {
+        const res = await fetch("/api/content", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: contentId,
+            scheduledPublishAt: newIso,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Gagal menyimpan jadwal tayang.");
+        }
+        setFeedback({
+          type: "success",
+          text: `🎉 Jadwal tayang berhasil disimpan (${formatPublishSchedule(newIso).formattedDateTime})!`,
+        });
       }
 
       setItems((prev) =>
@@ -455,11 +491,14 @@ export function PublishingManager({
           it.id === contentId ? { ...it, scheduledPublishAt: newIso } : it
         )
       );
+      setPublications((prev) =>
+        prev.map((p) =>
+          p.contentId === contentId && p.publishStatus === "scheduled"
+            ? { ...p, scheduledAt: newIso }
+            : p
+        )
+      );
       setEditingScheduleId(null);
-      setFeedback({
-        type: "success",
-        text: `🎉 Jadwal tayang berhasil disimpan (${formatPublishSchedule(newIso).formattedDateTime})!`,
-      });
     } catch (err) {
       setFeedback({
         type: "error",
@@ -470,6 +509,63 @@ export function PublishingManager({
       });
     } finally {
       setSavingScheduleId(null);
+    }
+  };
+
+  // Helper: Cancel schedule and remove post from Buffer queue
+  const handleCancelSchedule = async (contentId: string) => {
+    if (
+      !confirm(
+        "Apakah Anda yakin ingin membatalkan jadwal tayang ini dan menghapusnya dari antrean Buffer?"
+      )
+    ) {
+      return;
+    }
+    setCancelingScheduleId(contentId);
+    try {
+      const res = await fetch("/api/buffer/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel",
+          contentId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal membatalkan jadwal di Buffer.");
+      }
+
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === contentId
+            ? { ...it, contentStatus: "ready_to_publish", scheduledPublishAt: null }
+            : it
+        )
+      );
+      setPublications((prev) =>
+        prev.map((p) =>
+          p.contentId === contentId
+            ? {
+                ...p,
+                publishStatus: "ready_for_manual_upload",
+                scheduledAt: null,
+                externalPostUrl: "",
+              }
+            : p
+        )
+      );
+      setFeedback({
+        type: "success",
+        text: "✅ Jadwal postingan berhasil dibatalkan dan dihapus dari antrean Buffer.",
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: err instanceof Error ? err.message : "Gagal membatalkan jadwal.",
+      });
+    } finally {
+      setCancelingScheduleId(null);
     }
   };
 
@@ -1117,6 +1213,10 @@ export function PublishingManager({
                     publishedPlatforms.length === currentPlatforms.length;
                   const isPartiallyPublished =
                     publishedPlatforms.length > 0 && !isAllSelectedPublished;
+                  const isAllSelectedScheduled =
+                    scheduledPlatforms.length > 0 &&
+                    scheduledPlatforms.length === currentPlatforms.length;
+                  const hasAnyScheduled = scheduledPlatforms.length > 0;
 
                   const isEditingSchedule = editingScheduleId === item.id;
 
@@ -1643,6 +1743,11 @@ export function PublishingManager({
                           <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
                             ● {publishedPlatforms.length}/3 Tayang
                           </span>
+                        ) : isAllSelectedScheduled || hasAnyScheduled ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 border border-indigo-200">
+                            <Clock className="h-3 w-3 text-indigo-600" />
+                            Terjadwal ({scheduledPlatforms.length}/3)
+                          </span>
                         ) : isReady ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
                             ● Siap Publish
@@ -1736,6 +1841,42 @@ export function PublishingManager({
                                 title="Publikasikan ulang ke seluruh platform"
                               >
                                 <RefreshCw className="h-3 w-3 text-slate-400" />
+                              </button>
+                            </div>
+                          ) : isAllSelectedScheduled || hasAnyScheduled ? (
+                            /* TERJADWAL DI BUFFER (ANTI-DUPLICATE & EDIT-FIRST SAFEGUARD) */
+                            <div className="inline-flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 text-[11px] font-bold text-indigo-800 shadow-2xs select-none"
+                                title={`Konten ini sudah masuk antrean jadwal Buffer (${scheduleInfo.timeLabel}). Waktu tayang dapat diedit via Ubah Jadwal tanpa mendobelkan.`}
+                              >
+                                <Clock className="h-3.5 w-3.5 text-indigo-600" />
+                                <span>Terjadwal ({scheduleInfo.timeLabel})</span>
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => openScheduleEditor(item)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-[10px] font-bold text-indigo-700 hover:bg-indigo-50 transition-colors shadow-2xs"
+                                title="Ubah waktu tayang postingan di Buffer tanpa membuat dobel postingan"
+                              >
+                                <Calendar className="h-3 w-3 text-indigo-600" />
+                                <span>Ubah Jadwal</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={cancelingScheduleId === item.id}
+                                onClick={() => handleCancelSchedule(item.id)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-[10px] font-bold text-rose-700 hover:bg-rose-100 transition-colors"
+                                title="Batalkan jadwal dan hapus dari antrean Buffer"
+                              >
+                                <Trash2 className="h-3 w-3 text-rose-600" />
+                                <span>
+                                  {cancelingScheduleId === item.id
+                                    ? "Menghapus..."
+                                    : "Batal"}
+                                </span>
                               </button>
                             </div>
                           ) : (
