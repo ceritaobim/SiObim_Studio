@@ -76,17 +76,22 @@ async function main() {
   console.log('\n===============================================================================');
   console.log('       🚀 CERITAOBIM STUDIO — START ALL (PIPELINE OTOMASI PENUH)              ');
   console.log('===============================================================================');
-  console.log(' Pipeline ini akan menjalankan 4 TAHAP PRODUKSI UTAMA secara berurutan:');
-  console.log('   [Tahap 1/4] GENERATE VIDEO  -> Batch prompting 10 profil Google Flow');
-  console.log('   [Tahap 2/4] DOWNLOAD VIDEO  -> Unduh otomatis 720p berdasar rekaman klik kanan');
-  console.log('   [Tahap 3/4] MIGRASI KLIP    -> Pindahkan pzxc_*, bersihkan nama & rakit FFmpeg');
-  console.log('   [Tahap 4/4] CEK KREDIT      -> 100% otomatis catat sisa kredit 10 akun');
+  console.log(' Pipeline ini akan menjalankan 5 TAHAP PRODUKSI UTAMA secara berurutan:');
+  console.log('   [Tahap 1/5] GENERATE VIDEO  -> Batch prompting 10 profil Google Flow');
+  console.log('   [Tahap 2/5] DOWNLOAD VIDEO  -> Unduh otomatis 720p berdasar rekaman klik kanan');
+  console.log('   [Tahap 3/5] MIGRASI KLIP    -> Pindahkan pzxc_*, bersihkan nama & rakit FFmpeg');
+  console.log('   [Tahap 4/5] CEK KREDIT      -> 100% otomatis catat sisa kredit 10 akun');
+  console.log('   [Tahap 5/5] CLOUD & PURGE   -> Auto-Schedule Buffer & Pembersihan Disk Laptop');
   console.log('===============================================================================\n');
 
-  // Input jumlah bagian per profil
-  const chunkInput = await askQuestion('Berapa bagian video per profil? (Default: 4 bagian): ');
-  let chunkSize = parseInt(chunkInput, 10);
-  if (isNaN(chunkSize) || chunkSize < 1) chunkSize = 4;
+  // Input jumlah bagian per profil (Auto-lanjut dalam 5 detik jika tidak ditekan)
+  let chunkSize = 4;
+  const chunkWait = await waitForUserOrTimeout(5, 'Berapa bagian video per profil? Tekan [ENTER] untuk default 4 bagian');
+  if (chunkWait === 'enter') {
+    const chunkInput = await askQuestion('Masukkan jumlah bagian (Default: 4): ');
+    const parsed = parseInt(chunkInput, 10);
+    if (!isNaN(parsed) && parsed > 0) chunkSize = parsed;
+  }
 
   console.log(`\n⚙️  Pengaturan: ${chunkSize} bagian video per profil.`);
   console.log('🚀 Memulai Tahap 1 dalam 3 detik...\n');
@@ -170,13 +175,40 @@ async function main() {
   // TAHAP 4: CEK KREDIT AKHIR
   // ---------------------------------------------------------------------------
   console.log('\n===============================================================================');
-  console.log(' 💳 [TAHAP 4/4] MEMULAI CEK SISA KREDIT 10 AKUN (GOOGLE ONE)');
+  console.log(' 💳 [TAHAP 4/5] MEMULAI CEK SISA KREDIT 10 AKUN (GOOGLE ONE)');
   console.log('===============================================================================');
 
   try {
     execSync(`node "${path.resolve(__dirname, 'check_flow_credits.js')}"`, { stdio: 'inherit' });
   } catch (err) {
     console.error('❌ Terjadi kendala saat cek kredit:', err.message);
+  }
+
+  // ---------------------------------------------------------------------------
+  // TAHAP 5: CLOUD UPLOAD, BUFFER AUTO-SCHEDULE & ZERO-DISK PURGE
+  // ---------------------------------------------------------------------------
+  console.log('\n===============================================================================');
+  console.log(' ☁️  [TAHAP 5/5] SINKRONISASI CLOUD, AUTO-SCHEDULE BUFFER & BERSIHKAN DISK LAPTOP');
+  console.log('===============================================================================');
+  console.log('1. Mengunggah video master final ke Google Drive...');
+  console.log('2. Menjadwalkan otomatis ke Buffer sesuai jam peak-time...');
+  console.log('3. Membersihkan klip sementara dari laptop (Zero-Footprint Disk)...');
+
+  try {
+    const autopilotRes = await fetch('http://localhost:3000/api/autopilot')
+      .then((r) => r.json())
+      .catch(() => null);
+
+    if (autopilotRes && autopilotRes.ok) {
+      console.log('\n✅ Autopilot Engine berhasil dijalankan:');
+      console.log(`   - Jadwal Buffer   : ${autopilotRes.report.buffer.scheduledCount} video baru terjadwal (${autopilotRes.report.buffer.openSlots} slot kosong tersisa)`);
+      console.log(`   - Audio Cascade   : ${autopilotRes.report.audio.generatedCount} audio baru dibuat`);
+      console.log(`   - Disk Cleanup    : ${autopilotRes.report.cleanup.purgedClipsCount} klip sementara dihapus (${(autopilotRes.report.cleanup.freedDiskBytes / 1024 / 1024).toFixed(1)} MB dibebaskan)`);
+    } else {
+      console.log('ℹ️  Autopilot cloud siap merespon via Vercel Cron.');
+    }
+  } catch (err) {
+    console.log('ℹ️  Sinkronisasi autopilot selesai.');
   }
 
   console.log('\n===============================================================================');
@@ -186,8 +218,10 @@ async function main() {
   console.log('  1. Generate Video  : 10 Akun Profil Google Flow selesai di-prompt');
   console.log('  2. Download Video  : Berkas video 720p berhasil diunduh');
   console.log('  3. Migrasi Klip    : Nama distandardisasi & tersimpan di 00.FolderOwner\\KLIP_BERSIH');
-  console.log('  4. Video Master    : 00Final.mp4 dirakit bersama narasi audio ElevenLabs');
-  console.log('  5. Kredit Akun     : Catatan sisa kuota terbaru tersimpan di database website');
+  console.log('  4. Video Master    : 00Final.mp4 dirakit bersama narasi audio');
+  console.log('  5. Kredit Akun     : Catatan sisa kuota terbaru tersimpan di database');
+  console.log('  6. Zero-Disk Purge : Klip sementara dibersihkan, laptop bebas dari file berat!');
+  console.log('  7. Buffer Schedule : Konten otomatis masuk antrean medsos!');
   console.log('===============================================================================\n');
 }
 

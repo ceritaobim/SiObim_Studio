@@ -208,36 +208,37 @@ export class TelegramService {
       (i) => !completedCodes.includes(i.contentCode.toUpperCase())
     );
 
-    let msg = `📊 <b>STATUS PRODUKSI CERITAOBIM STUDIO</b>\n\n`;
-    msg += `<b>✅ SUDAH FINAL (${completedItems.length} Video di GDrive):</b>\n`;
+    let msg = `📊 <b>Status Produksi CeritaObim</b>\n\n`;
 
-    if (completedItems.length === 0) {
-      msg += `<i>Belum ada video final yang selesai dirakit.</i>\n`;
-    } else {
-      completedItems.slice(0, 10).forEach((item) => {
-        msg += `• <b>${item.contentCode}</b>: "${item.title}"\n  👉 /review_${item.contentCode.replace(/-/g, "_")}\n`;
+    if (completedItems.length > 0) {
+      msg += `✅ <b>Siap Tayang (${completedItems.length} Video):</b>\n`;
+      completedItems.slice(0, 6).forEach((item, idx) => {
+        msg += `${idx + 1}. ${item.title}\n`;
       });
-      if (completedItems.length > 10) {
-        msg += `<i>... dan ${completedItems.length - 10} video final lainnya.</i>\n`;
+      if (completedItems.length > 6) {
+        msg += `<i>+ ${completedItems.length - 6} video lainnya siap tayang</i>\n`;
       }
+      msg += `\n`;
+    } else {
+      msg += `<i>Belum ada video final yang selesai dirakit.</i>\n\n`;
     }
 
-    msg += `\n<b>⏳ MASIH PROSES / PENDING (${pendingItems.length} Konten):</b>\n`;
-    if (pendingItems.length === 0) {
-      msg += `<i>Semua konten telah selesai 100%! 🎉</i>\n`;
-    } else {
-      pendingItems.slice(0, 8).forEach((item) => {
-        msg += `• [${item.contentCode}] ${item.title}\n`;
+    if (pendingItems.length > 0) {
+      msg += `⏳ <b>Sedang Diproduksi (${pendingItems.length} Video):</b>\n`;
+      pendingItems.slice(0, 3).forEach((item) => {
+        msg += `• ${item.title}\n`;
       });
-      if (pendingItems.length > 8) {
-        msg += `<i>... dan ${pendingItems.length - 8} konten pending lainnya.</i>\n`;
+      if (pendingItems.length > 3) {
+        msg += `<i>+ ${pendingItems.length - 3} video dalam antrean</i>\n`;
       }
+    } else {
+      msg += `🎉 <i>Seluruh konten telah selesai 100%!</i>\n`;
     }
 
-    // Buat tombol inline review untuk 3 konten final teratas
-    const inlineButtons: TelegramInlineButton[][] = completedItems.slice(0, 3).map((item) => [
+    // Buat tombol inline review judul bersih (tanpa ID teknis)
+    const inlineButtons: TelegramInlineButton[][] = completedItems.slice(0, 4).map((item) => [
       {
-        text: `🎬 Review ${item.contentCode} (${item.title.slice(0, 24)}...)`,
+        text: `🎬 Tonton: ${item.title.length > 28 ? item.title.slice(0, 28) + "..." : item.title}`,
         callback_data: `review:${item.contentCode}`,
       },
     ]);
@@ -259,7 +260,7 @@ export class TelegramService {
     if (!item) {
       return this.client.sendMessage(
         chatId,
-        `❌ Konten dengan kode <code>${contentCode}</code> tidak ditemukan di database studio.`
+        `❌ Video yang diminta tidak ditemukan di database studio.`
       );
     }
 
@@ -273,45 +274,49 @@ export class TelegramService {
     const gdriveFolderUrl = typeof meta.gdriveDayFolderUrl === "string" ? meta.gdriveDayFolderUrl : "";
 
     const safeTitle = escapeHtml(item.title || "Konten Obim");
-    const safeCategory = escapeHtml(item.category || "Umum");
-    const safeTopic = escapeHtml(item.topic || "-");
-    const safeHook = escapeHtml(item.hook || (item.narration ? item.narration.slice(0, 60) : "-"));
     const safeCaptionBody = escapeHtml(item.tiktokCaption || item.instagramCaption || item.narration || "-");
 
-    let caption = `🎬 <b>[${item.contentCode}] ${safeTitle}</b>\n` +
-      `🏷️ <b>Topik:</b> ${safeCategory} — ${safeTopic}\n` +
-      `🎣 <b>Hook:</b> "${safeHook}..."\n\n` +
-      `📝 <b>Caption TikTok / Reels:</b>\n` +
+    const statusText =
+      item.contentStatus === "published"
+        ? "Sudah Tayang 🚀"
+        : item.contentStatus === "ready_to_publish"
+        ? "Siap Tayang ✅"
+        : "Menunggu Review ⏳";
+
+    let caption = `🎬 <b>${safeTitle}</b>\n\n` +
+      `📝 <b>Caption Medsos:</b>\n` +
       `<code>${safeCaptionBody}</code>\n\n` +
-      `Status: <b>${item.contentStatus.toUpperCase()}</b>`;
+      `Status: <b>${statusText}</b>`;
 
     if (!finalAsset) {
-      caption += `\n\n⚠️ <i>Catatan: Video final MP4 belum selesai dirakit di studio. Di atas adalah pratinjau naskah & caption. Anda tetap bisa menyetujuinya jika naskah sudah siap!</i>`;
+      caption += `\n\n⚠️ <i>Catatan: Video final MP4 belum selesai dirakit. Di atas adalah pratinjau naskah & caption. Anda tetap bisa menyetujuinya jika naskah sudah siap!</i>`;
     }
 
-    const inlineKeyboard: TelegramInlineButton[][] = [
-      [
+    const inlineKeyboard: TelegramInlineButton[][] = [];
+    if (item.contentStatus !== "ready_to_publish" && item.contentStatus !== "published") {
+      inlineKeyboard.push([
         {
           text: "✅ Setujui & Siap Tayang",
           callback_data: `approve:${item.contentCode}`,
         },
-      ],
-      [
-        {
-          text: "📋 Salin Caption TikTok",
-          callback_data: `copy:${item.contentCode}:tiktok`,
-        },
-        {
-          text: "📋 Salin Reels",
-          callback_data: `copy:${item.contentCode}:reels`,
-        },
-      ],
-    ];
+      ]);
+    }
+
+    inlineKeyboard.push([
+      {
+        text: "📋 Salin TikTok",
+        callback_data: `copy:${item.contentCode}:tiktok`,
+      },
+      {
+        text: "📋 Salin Reels",
+        callback_data: `copy:${item.contentCode}:reels`,
+      },
+    ]);
 
     if (gdriveFileUrl || gdriveFolderUrl) {
       inlineKeyboard.push([
         {
-          text: "🔗 Buka File di Google Drive",
+          text: "🔗 Buka Video di Google Drive",
           url: gdriveFileUrl || gdriveFolderUrl,
         },
       ]);
@@ -320,7 +325,6 @@ export class TelegramService {
     // 1. Coba kirimkan video langsung jika link streaming / GDrive tersedia
     if (gdriveFileUrl) {
       try {
-        // Format direct download link dari Google Drive
         const fileIdMatch = gdriveFileUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || gdriveFileUrl.match(/id=([a-zA-Z0-9_-]+)/);
         const directVideoUrl = fileIdMatch
           ? `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`
@@ -353,7 +357,7 @@ export class TelegramService {
     if (!item) {
       return this.client.sendMessage(
         chatId,
-        `❌ Konten <code>${contentCode}</code> tidak ditemukan.`
+        `❌ Konten tidak ditemukan.`
       );
     }
 
@@ -361,9 +365,18 @@ export class TelegramService {
       id: item.id,
       contentStatus: "ready_to_publish",
     });
+
+    // Otomatis picu Auto-Pilot Buffer queueing di latar belakang
+    try {
+      const { runAutopilotCycle } = await import(
+        "@/lib/services/autopilot-orchestrator"
+      );
+      runAutopilotCycle(DEFAULT_OWNER_ID).catch(() => {});
+    } catch {}
+
     return this.client.sendMessage(
       chatId,
-      `🎉 <b>Status Diperbarui!</b>\nKonten <b>${item.contentCode}</b> "${item.title}" telah disetujui dan berstatus: <b>READY TO PUBLISH</b> (Siap Tayang).`
+      `🎉 <b>Disetujui!</b>\n"${item.title}" kini berstatus <b>Siap Tayang</b> dan otomatis masuk ke antrean jadwal medsos!`
     );
   }
 

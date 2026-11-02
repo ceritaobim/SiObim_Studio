@@ -1,4 +1,3 @@
-import "server-only";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -244,6 +243,39 @@ export function setActiveProviderProfile(profileId: string): ProviderProfilesVau
   vault.activeProfileId = profileId;
   writeProviderProfilesVault(vault);
   return vault;
+}
+
+export function rotateToNextProviderProfile(): ProviderProfile {
+  const vault = readProviderProfilesVault();
+  if (vault.profiles.length === 0) {
+    throw new Error("Tidak ada profil akun tersimpan.");
+  }
+  const currentIndex = vault.profiles.findIndex(
+    (p) => p.id === vault.activeProfileId
+  );
+  const nextIndex = (currentIndex + 1) % vault.profiles.length;
+  const nextProfile = vault.profiles[nextIndex] ?? vault.profiles[0]!;
+  vault.activeProfileId = nextProfile.id;
+  writeProviderProfilesVault(vault);
+  return nextProfile;
+}
+
+export function rotateToNextGeminiProfile(): ProviderProfile | null {
+  const vault = readProviderProfilesVault();
+  if (vault.profiles.length === 0) return null;
+  const currentIndex = vault.profiles.findIndex(
+    (p) => p.id === vault.activeProfileId
+  );
+  for (let i = 1; i <= vault.profiles.length; i++) {
+    const idx = (currentIndex + i) % vault.profiles.length;
+    const candidate = vault.profiles[idx];
+    if (candidate?.geminiApiKey && candidate.geminiApiKey.trim()) {
+      vault.activeProfileId = candidate.id;
+      writeProviderProfilesVault(vault);
+      return candidate;
+    }
+  }
+  return null;
 }
 
 export function upsertProviderProfile(input: {

@@ -13,6 +13,7 @@ import {
   getActiveTTSProviderFromVault,
   recordGeminiTtsUsageForActiveProfile,
   recordUsedCreditsForActiveProfile,
+  rotateToNextGeminiProfile,
 } from "@/lib/providers/account-profiles";
 import { getActiveMainCharacterVoice } from "@/lib/characters/character-store";
 import { cleanNarrationForSpeech } from "@/lib/providers/tts/tts-provider";
@@ -265,12 +266,41 @@ export async function POST(request: Request) {
     const mainCharacterVoice = getActiveMainCharacterVoice();
     const chosenVoiceId = body.voiceId || mainCharacterVoice.voiceId;
     const tts = getActiveTTSProviderFromVault(undefined, chosenVoiceId);
-    const synthesis = await tts.synthesize({
-      contentId: content.id,
-      contentCode: content.contentCode,
-      narrationText: content.narration,
-      voiceId: chosenVoiceId,
-    });
+    let synthesis;
+    try {
+      synthesis = await tts.synthesize({
+        contentId: content.id,
+        contentCode: content.contentCode,
+        narrationText: content.narration,
+        voiceId: chosenVoiceId,
+      });
+    } catch (ttsErr: unknown) {
+      const errMsg = ttsErr instanceof Error ? ttsErr.message : String(ttsErr);
+      if (errMsg.includes("429") || errMsg.includes("KUOTA_GEMINI_TTS_HABIS")) {
+        console.log("[Voice API] 429 Terdeteksi. Mencoba rotasi otomatis akun Google Gemini...");
+        const nextProfile = rotateToNextGeminiProfile();
+        if (nextProfile && nextProfile.geminiApiKey) {
+          const nextTts = getActiveTTSProviderFromVault(nextProfile.id, chosenVoiceId);
+          synthesis = await nextTts.synthesize({
+            contentId: content.id,
+            contentCode: content.contentCode,
+            narrationText: content.narration,
+            voiceId: chosenVoiceId,
+          });
+        } else {
+          console.log("[Voice API] Seluruh kuota Gemini habis. Beralih otomatis ke ElevenLabs...");
+          const fallbackEleven = getActiveTTSProviderFromVault(undefined, "cgSgspJ2msm6clMCkdW9");
+          synthesis = await fallbackEleven.synthesize({
+            contentId: content.id,
+            contentCode: content.contentCode,
+            narrationText: content.narration,
+            voiceId: "cgSgspJ2msm6clMCkdW9",
+          });
+        }
+      } else {
+        throw ttsErr;
+      }
+    }
 
     if (synthesis.providerKey === "elevenlabs") {
       recordUsedCreditsForActiveProfile(

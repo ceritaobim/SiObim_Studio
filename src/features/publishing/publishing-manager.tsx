@@ -1525,6 +1525,18 @@ export function PublishingManager({
                               </div>
                             );
                           })()
+                        ) : isPublished ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-emerald-700 font-black text-[11px]">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                              <span>Sudah Tayang</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {item.publishedAt
+                                ? formatPublishSchedule(item.publishedAt).dateLabel
+                                : "Tayang via Buffer"}
+                            </p>
+                          </div>
                         ) : (
                           <div className="space-y-1">
                             <div className="flex items-center gap-1 text-slate-800 font-bold">
@@ -1564,9 +1576,9 @@ export function PublishingManager({
                           {/* YouTube */}
                           {(() => {
                             const pub = getPublication(item.id, "youtube");
-                            const isPub = pub?.publishStatus === "published";
-                            const isSched = pub?.publishStatus === "scheduled";
                             const isSelected = currentPlatforms.includes("youtube");
+                            const isPub = (isPublished && isSelected) || pub?.publishStatus === "published";
+                            const isSched = !isPub && (pub?.publishStatus === "scheduled");
 
                             if (isPub) {
                               return (
@@ -1613,9 +1625,9 @@ export function PublishingManager({
                           {/* TikTok */}
                           {(() => {
                             const pub = getPublication(item.id, "tiktok");
-                            const isPub = pub?.publishStatus === "published";
-                            const isSched = pub?.publishStatus === "scheduled";
                             const isSelected = currentPlatforms.includes("tiktok");
+                            const isPub = (isPublished && isSelected) || pub?.publishStatus === "published";
+                            const isSched = !isPub && (pub?.publishStatus === "scheduled");
 
                             if (isPub) {
                               return (
@@ -1662,9 +1674,9 @@ export function PublishingManager({
                           {/* Instagram */}
                           {(() => {
                             const pub = getPublication(item.id, "instagram");
-                            const isPub = pub?.publishStatus === "published";
-                            const isSched = pub?.publishStatus === "scheduled";
                             const isSelected = currentPlatforms.includes("instagram");
+                            const isPub = (isPublished && isSelected) || pub?.publishStatus === "published";
+                            const isSched = !isPub && (pub?.publishStatus === "scheduled");
 
                             if (isPub) {
                               return (
@@ -1792,7 +1804,7 @@ export function PublishingManager({
                                   : "🔨 Rakit Video"}
                               </span>
                             </button>
-                          ) : isAllSelectedPublished ? (
+                          ) : isPublished || isAllSelectedPublished ? (
                             /* SUDAH TAYANG (DOUBLE-PUBLISH SAFEGUARD) */
                             <div className="inline-flex items-center gap-1">
                               <span

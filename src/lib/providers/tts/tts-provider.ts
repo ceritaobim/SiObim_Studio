@@ -487,7 +487,7 @@ export class GeminiChildTTSProvider implements TTSProvider {
       const errBody = await response.text().catch(() => "");
       if (response.status === 429) {
         throw new Error(
-          "KUOTA_GEMINI_TTS_HABIS (429): Kuota gratis harian Gemini TTS (10 audio/hari per akun Google) pada akun aktif ini sudah habis terpakai. Silakan buka menu 'Models Usage' lalu klik 'Pakai Akun Ini' pada Akun Google 1, 3, atau 4 untuk langsung lanjut generate audio!"
+          "KUOTA_GEMINI_TTS_HABIS (429): Kuota harian Gemini TTS pada akun ini habis."
         );
       }
       throw new Error(

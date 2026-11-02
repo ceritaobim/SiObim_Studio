@@ -54,6 +54,7 @@ describe("Milestone 0 — Foundation & Provider Status Honesty", () => {
       "/assets",
       "/publishing",
       "/characters",
+      "/models-usage",
       "/tools",
       "/analytics",
       "/settings",

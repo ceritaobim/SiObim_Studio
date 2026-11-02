@@ -91,7 +91,7 @@ interface ServiceWithMockClient {
     expect(answerMock).toHaveBeenCalledWith("cb_123", expect.stringContaining("disetujui"));
     expect(sendMock).toHaveBeenCalledWith(
       1295640663,
-      expect.stringContaining("READY TO PUBLISH")
+      expect.stringContaining("Siap Tayang")
     );
   });
 

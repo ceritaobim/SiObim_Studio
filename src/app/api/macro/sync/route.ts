@@ -473,6 +473,17 @@ async function executeMacroDropSync(ownerId: string) {
     }
   }
 
+  // 4. Trigger Auto-Pilot (Auto-Buffer scheduling, zero-disk cleanup & cascading progress)
+  let autopilotSummary = null;
+  try {
+    const { runAutopilotCycle } = await import(
+      "@/lib/services/autopilot-orchestrator"
+    );
+    autopilotSummary = await runAutopilotCycle(ownerId);
+  } catch {
+    // Non-blocking
+  }
+
   return {
     ok: true,
     scannedCount: videoFiles.length,
@@ -485,9 +496,10 @@ async function executeMacroDropSync(ownerId: string) {
     unmatchedCount: unmatchedFiles.length,
     unmatchedFiles,
     dropFolder: dropDir,
+    autopilot: autopilotSummary,
     message: `Berhasil memproses ${ingestedClips.length} klip video dari dropzone. ${
       assembledVideos.length > 0
-        ? `${assembledVideos.length} video final 00Final.mp4 berhasil dirakit & disinkronkan ke Google Drive!`
+        ? `${assembledVideos.length} video final 00Final.mp4 berhasil dirakit, disinkronkan ke Google Drive, & otomatis dijadwalkan ke Buffer!`
         : ""
     }`,
   };

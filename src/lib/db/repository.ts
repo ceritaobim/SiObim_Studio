@@ -4161,18 +4161,63 @@ export async function listOrInitializePublications(
         };
         store.publications.push(record);
         mutated = true;
-      } else if (finalVideo && !existing.ExportAssetId) {
-        existing.ExportAssetId = finalVideo.id;
-        if (existing.publishStatus === "draft") {
-          existing.publishStatus = "ready_for_manual_upload";
+      } else {
+        if (finalVideo && !existing.ExportAssetId) {
+          existing.ExportAssetId = finalVideo.id;
+          if (existing.publishStatus === "draft") {
+            existing.publishStatus = "ready_for_manual_upload";
+          }
+          mutated = true;
         }
-        mutated = true;
+
+        if (item.contentStatus === "published" && existing.publishStatus !== "published") {
+          existing.publishStatus = "published";
+          existing.publishedAt = existing.publishedAt || item.publishedAt || new Date().toISOString();
+          mutated = true;
+        }
       }
     }
   }
 
   if (mutated) {
     writeLocalStore(store, options?.storePath);
+  }
+
+  if (!options?.forceLocal) {
+    const supabase = createServerSupabaseAdminClient();
+    if (supabase) {
+      const ids = targetItems.map((i) => i.id);
+      if (ids.length > 0) {
+        try {
+          const { data: dbPubs } = await supabase
+            .from("platform_publications")
+            .select("*")
+            .in("content_id", ids);
+
+          if (Array.isArray(dbPubs) && dbPubs.length > 0) {
+            for (const row of dbPubs) {
+              const mappedStatus: PublishStatus =
+                row.status === "published"
+                  ? "published"
+                  : row.status === "scheduled_manually"
+                  ? "scheduled"
+                  : row.status === "prepared"
+                  ? "ready_for_manual_upload"
+                  : "draft";
+
+              const idx = store.publications.findIndex(
+                (p) => p.contentId === row.content_id && p.platform === row.platform
+              );
+              if (idx !== -1 && store.publications[idx]) {
+                store.publications[idx]!.publishStatus = mappedStatus;
+                store.publications[idx]!.scheduledAt = row.planned_publish_at;
+                store.publications[idx]!.externalPostUrl = row.published_url || "";
+              }
+            }
+          }
+        } catch {}
+      }
+    }
   }
 
   const result = store.publications.filter((p) =>
@@ -4248,22 +4293,34 @@ export async function updatePlatformPublication(
   if (!options?.forceLocal) {
     const supabase = createServerSupabaseAdminClient();
     if (supabase) {
+      const mappedDbStatus =
+        updated.publishStatus === "published"
+          ? "published"
+          : updated.publishStatus === "scheduled"
+          ? "scheduled_manually"
+          : updated.publishStatus === "ready_for_manual_upload"
+          ? "prepared"
+          : "not_prepared";
+
+      const hashtagsArr =
+        typeof updated.hashtags === "string"
+          ? updated.hashtags.split(/\s+/).filter(Boolean)
+          : Array.isArray(updated.hashtags)
+          ? updated.hashtags
+          : [];
+
       await supabase.from("platform_publications").upsert(
         {
           id: updated.id,
           content_id: updated.contentId,
           platform: updated.platform,
-          export_asset_id: updated.ExportAssetId,
-          title_or_hook: updated.titleOrHook,
-          caption_text: updated.captionText,
-          hashtags: updated.hashtags,
-          cta_text: updated.ctaText,
-          checklist: updated.checklist,
-          scheduled_at: updated.scheduledAt,
-          publish_status: updated.publishStatus,
-          published_at: updated.publishedAt,
-          external_post_url: updated.externalPostUrl,
-          notes: updated.notes,
+          status: mappedDbStatus,
+          title: updated.titleOrHook || "",
+          caption: updated.captionText || "",
+          hashtags: hashtagsArr,
+          planned_publish_at: updated.scheduledAt || null,
+          published_url: updated.externalPostUrl || "",
+          notes: updated.notes || "",
         },
         { onConflict: "content_id,platform" }
       );
