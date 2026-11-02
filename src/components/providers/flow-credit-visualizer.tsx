@@ -14,6 +14,8 @@ import {
   Sparkles,
   Layers,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Info,
 } from "lucide-react";
 import type { FlowProfileAccount } from "@/lib/providers/flow-accounts-service";
@@ -38,6 +40,7 @@ export function FlowCreditVisualizer() {
   const [editValue, setEditValue] = useState<number>(50);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
   const fetchAccounts = async () => {
     try {
@@ -123,42 +126,6 @@ export function FlowCreditVisualizer() {
     };
   };
 
-  const { isAdvance } = useStudioMode();
-
-  if (!isAdvance && summary) {
-    return (
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-white p-4 shadow-2xs">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600">
-            <Sparkles className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-900">
-                Alokasi Kuota Google Flow
-              </span>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                ~{summary.estimatedVideosReady} Video Siap
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Total {summary.totalCredits} / {summary.totalMaxCredits} Kredit ({summary.overallPercentage}%) di {summary.healthyCount} profil siap produksi.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={fetchAccounts}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
-        >
-          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-          <span>Segarkan</span>
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       {/* Header */}
@@ -170,17 +137,43 @@ export function FlowCreditVisualizer() {
                 <CreditCard className="h-5 w-5" />
               </span>
               <div>
-                <h3 className="text-lg font-bold text-white tracking-tight">
-                  Google Flow 10-Profile Credit Monitor
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-white tracking-tight">
+                    Google Flow 10-Profile Credit Monitor
+                  </h3>
+                  {summary && (
+                    <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-300 border border-emerald-400/30">
+                      ~{summary.estimatedVideosReady} Video Siap
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs sm:text-sm text-slate-300">
-                  Pantau sisa kuota kredit per profil Chrome (Target Full Bar: 50 Kredit)
+                  Pantau sisa kuota kredit real-time per profil Chrome (Target Full Bar: 50 Kredit)
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/70 hover:bg-indigo-600 text-white border border-indigo-400/40 transition-all shadow-xs"
+              title="Buka atau sembunyikan rincian 10 profil"
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5" />
+                  <span>Sembunyikan 10 Profil</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  <span>Lihat Detail 10 Profil Chrome</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={fetchAccounts}
               disabled={loading}
@@ -237,128 +230,132 @@ export function FlowCreditVisualizer() {
         </div>
       )}
 
-      {/* Grid 10 Profil */}
-      <div className="p-5 sm:p-6 bg-slate-50/50">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {accounts.map((acc) => {
-            const barPct = Math.min(100, Math.round((acc.credits / 50) * 100));
-            const badge = getBadgeStyle(acc.status, acc.credits);
-            const isEditing = editingIndex === acc.index;
+      {/* Grid 10 Profil (Expandable / Visible by Default) */}
+      {isExpanded && (
+        <>
+          <div className="p-5 sm:p-6 bg-slate-50/50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {accounts.map((acc) => {
+                const barPct = Math.min(100, Math.round((acc.credits / 50) * 100));
+                const badge = getBadgeStyle(acc.status, acc.credits);
+                const isEditing = editingIndex === acc.index;
 
-            return (
-              <div
-                key={acc.index}
-                className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-xs hover:border-indigo-300 transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-8 w-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
-                        #{acc.index}
+                return (
+                  <div
+                    key={acc.index}
+                    className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-xs hover:border-indigo-300 transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-8 w-8 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
+                            #{acc.index}
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-slate-800 leading-tight">
+                              Profil {acc.index}{" "}
+                              <span className="text-xs font-normal text-slate-500">
+                                ({acc.dirName})
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-500 font-mono truncate max-w-[200px] sm:max-w-[240px]">
+                              {acc.email || acc.name}
+                            </div>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badge.bg}`}
+                        >
+                          {badge.icon}
+                          {badge.label}
+                        </span>
                       </div>
-                      <div>
-                        <div className="text-sm font-bold text-slate-800 leading-tight">
-                          Profil {acc.index}{" "}
-                          <span className="text-xs font-normal text-slate-500">
-                            ({acc.dirName})
+
+                      {/* Visual Bar Credit */}
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span className="text-slate-600 flex items-center gap-1">
+                            Sisa Kredit:
                           </span>
+                          {isEditing ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min="0"
+                                max="500"
+                                value={editValue}
+                                onChange={(e) => setEditValue(parseInt(e.target.value, 10) || 0)}
+                                className="w-16 px-1.5 py-0.5 text-xs font-bold text-slate-900 border border-indigo-400 rounded focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSaveEdit(acc.index)}
+                                disabled={savingIndex === acc.index}
+                                className="p-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                                title="Simpan"
+                              >
+                                <Check className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
+                                title="Batal"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-900 font-extrabold text-sm">
+                                {acc.credits} / 50
+                              </span>
+                              <button
+                                onClick={() => handleStartEdit(acc)}
+                                className="text-slate-400 hover:text-indigo-600 transition-colors p-0.5"
+                                title="Edit kredit manual"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <div className="text-xs text-slate-500 font-mono truncate max-w-[200px] sm:max-w-[240px]">
-                          {acc.email || acc.name}
-                        </div>
-                      </div>
-                    </div>
 
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badge.bg}`}
-                    >
-                      {badge.icon}
-                      {badge.label}
-                    </span>
-                  </div>
-
-                  {/* Visual Bar Credit */}
-                  <div className="mt-3 space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-600 flex items-center gap-1">
-                        Sisa Kredit:
-                      </span>
-                      {isEditing ? (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            min="0"
-                            max="500"
-                            value={editValue}
-                            onChange={(e) => setEditValue(parseInt(e.target.value, 10) || 0)}
-                            className="w-16 px-1.5 py-0.5 text-xs font-bold text-slate-900 border border-indigo-400 rounded focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-                            autoFocus
+                        {/* Progress Bar Container */}
+                        <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${getBarColor(
+                              acc.credits
+                            )}`}
+                            style={{ width: `${barPct}%` }}
                           />
-                          <button
-                            onClick={() => handleSaveEdit(acc.index)}
-                            disabled={savingIndex === acc.index}
-                            className="p-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-                            title="Simpan"
-                          >
-                            <Check className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
-                            title="Batal"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-slate-900 font-extrabold text-sm">
-                            {acc.credits} / 50
-                          </span>
-                          <button
-                            onClick={() => handleStartEdit(acc)}
-                            className="text-slate-400 hover:text-indigo-600 transition-colors p-0.5"
-                            title="Edit kredit manual"
-                          >
-                            <Edit2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      )}
+                      </div>
                     </div>
 
-                    {/* Progress Bar Container */}
-                    <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${getBarColor(
-                          acc.credits
-                        )}`}
-                        style={{ width: `${barPct}%` }}
-                      />
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>
+                        Kapasitas: ~{Math.floor(acc.credits / 3)} video (3 bagian/konten)
+                      </span>
+                      <span>{barPct}% Terisi</span>
                     </div>
                   </div>
-                </div>
+                );
+              })}
+            </div>
+          </div>
 
-                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>
-                    Kapasitas: ~{Math.floor(acc.credits / 3)} video (3 bagian/konten)
-                  </span>
-                  <span>{barPct}% Terisi</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Footer Info Box */}
-      <div className="p-4 bg-slate-100/70 border-t border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Info className="h-4 w-4 text-indigo-600 shrink-0" />
-          <span>
-            Jalankan <b>Menu [5]</b> di <code className="bg-slate-200/80 px-1 py-0.5 rounded font-mono font-bold text-slate-800">Jalankan_Makro_Otomasi.bat</code> untuk membuka otomatis ke-10 profil & mencatat kredit secara berkala.
-          </span>
-        </div>
-      </div>
+          {/* Footer Info Box */}
+          <div className="p-4 bg-slate-100/70 border-t border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-indigo-600 shrink-0" />
+              <span>
+                Jalankan <b>Menu [5]</b> di <code className="bg-slate-200/80 px-1 py-0.5 rounded font-mono font-bold text-slate-800">Jalankan_Makro_Otomasi.bat</code> untuk membuka otomatis ke-10 profil Chrome & mencatat sisa kredit secara real-time.
+              </span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

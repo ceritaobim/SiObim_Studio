@@ -272,18 +272,22 @@ export class TelegramService {
     const gdriveFileUrl = typeof meta.gdriveFileUrl === "string" ? meta.gdriveFileUrl : "";
     const gdriveFolderUrl = typeof meta.gdriveDayFolderUrl === "string" ? meta.gdriveDayFolderUrl : "";
 
-    const safeTitle = escapeHtml(item.title);
-    const safeCategory = escapeHtml(item.category);
-    const safeTopic = escapeHtml(item.topic);
-    const safeHook = escapeHtml(item.hook || item.narration.slice(0, 60));
-    const safeCaptionBody = escapeHtml(item.tiktokCaption || item.instagramCaption || item.narration);
+    const safeTitle = escapeHtml(item.title || "Konten Obim");
+    const safeCategory = escapeHtml(item.category || "Umum");
+    const safeTopic = escapeHtml(item.topic || "-");
+    const safeHook = escapeHtml(item.hook || (item.narration ? item.narration.slice(0, 60) : "-"));
+    const safeCaptionBody = escapeHtml(item.tiktokCaption || item.instagramCaption || item.narration || "-");
 
-    const caption = `🎬 <b>[${item.contentCode}] ${safeTitle}</b>\n` +
+    let caption = `🎬 <b>[${item.contentCode}] ${safeTitle}</b>\n` +
       `🏷️ <b>Topik:</b> ${safeCategory} — ${safeTopic}\n` +
       `🎣 <b>Hook:</b> "${safeHook}..."\n\n` +
       `📝 <b>Caption TikTok / Reels:</b>\n` +
       `<code>${safeCaptionBody}</code>\n\n` +
       `Status: <b>${item.contentStatus.toUpperCase()}</b>`;
+
+    if (!finalAsset) {
+      caption += `\n\n⚠️ <i>Catatan: Video final MP4 belum selesai dirakit di studio. Di atas adalah pratinjau naskah & caption. Anda tetap bisa menyetujuinya jika naskah sudah siap!</i>`;
+    }
 
     const inlineKeyboard: TelegramInlineButton[][] = [
       [

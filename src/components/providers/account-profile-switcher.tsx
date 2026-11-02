@@ -20,6 +20,7 @@ import type {
   ElevenLabsQuotaInfo,
   MaskedProviderProfile,
 } from "@/lib/providers/account-profiles";
+import type { FlowProfileAccount } from "@/lib/providers/flow-accounts-service";
 
 interface AccountProfileSwitcherProps {
   focusMode?: "elevenlabs" | "all";
@@ -41,6 +42,7 @@ export function AccountProfileSwitcher({
   const [switching, setSwitching] = useState<boolean>(false);
   const [showAddEditForm, setShowAddEditForm] =
     useState<boolean>(defaultExpanded);
+  const [flowAccounts, setFlowAccounts] = useState<FlowProfileAccount[]>([]);
 
   // Form state for adding/editing an account bundle
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -103,6 +105,7 @@ export function AccountProfileSwitcher({
         }
 
         if (options?.live) {
+          void loadFlowAccounts();
           setFeedback({
             type: "success",
             text: options.profileId
@@ -120,8 +123,19 @@ export function AccountProfileSwitcher({
     }
   };
 
+  const loadFlowAccounts = async () => {
+    try {
+      const res = await fetch("/api/flow-accounts");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.accounts)) {
+        setFlowAccounts(data.accounts);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     void loadVault();
+    void loadFlowAccounts();
   }, []);
 
   const activeProfile =
@@ -332,6 +346,9 @@ export function AccountProfileSwitcher({
     (sum, p) => sum + (p.hasGeminiKey ? p.geminiTtsLimitPerDay || 10 : 0),
     0
   );
+  const totalFlowCredits = flowAccounts.reduce((sum, fa) => sum + fa.credits, 0);
+  const totalFlowMax = flowAccounts.length > 0 ? flowAccounts.length * 50 : 500;
+  const totalFlowVideos = Math.floor(totalFlowCredits / 3);
   const anyMissingUserRead = quotas.some((q) => q.missingUserReadPermission);
 
   return (
@@ -347,6 +364,9 @@ export function AccountProfileSwitcher({
               <span className="text-xs font-bold uppercase tracking-wider text-sky-900">
                 Daftar Akun Produksi & Cek Real-Time Kuota ({profiles.length} Akun)
               </span>
+              <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-[11px] font-bold text-indigo-950">
+                Total Sisa Google Flow: {totalFlowCredits} / {totalFlowMax} Kredit (~{totalFlowVideos} Video Siap)
+              </span>
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-950">
                 Total Sisa Gemini TTS Hari Ini: {totalGeminiTtsRemaining} /{" "}
                 {totalGeminiTtsLimit} Audio (Reset Setiap Hari)
@@ -358,7 +378,8 @@ export function AccountProfileSwitcher({
               </span>
             </div>
             <p className="text-[11px] text-stone-500">
-              Setiap akun memiliki <strong>kuota harian Gemini AI</strong> (
+              Setiap akun memiliki <strong>Google Flow Chrome Profil (target 50 kredit)</strong>, <strong>kuota harian Gemini AI</strong> (
+              <strong>10 Audio TTS/hari</strong> untuk suara Obim{" "}
               <strong>10 Audio TTS/hari</strong> untuk suara Obim{" "}
               <em>Puck Bold</em> + <strong>1.500 Text Request/hari</strong>,
               reset setiap hari) serta{" "}
@@ -472,6 +493,23 @@ export function AccountProfileSwitcher({
             Math.floor((isFlash ? rem * 2 : rem) / 650)
           );
           const isCheckingThis = checkingLiveId === p.id;
+          const matchingFlow =
+            flowAccounts.find((fa) => {
+              if (
+                p.googleEmail &&
+                fa.email &&
+                p.googleEmail.trim().toLowerCase() === fa.email.trim().toLowerCase()
+              ) {
+                return true;
+              }
+              const matchNum = p.label.match(/\d+/);
+              if (matchNum && Number(matchNum[0]) === fa.index) {
+                return true;
+              }
+              return false;
+            }) ||
+            flowAccounts[index] ||
+            null;
 
           return (
             <div
@@ -483,7 +521,7 @@ export function AccountProfileSwitcher({
               }`}
             >
               {/* Col 1: Account Number, Label, Email */}
-              <div className="flex items-start gap-3 lg:w-72">
+              <div className="flex items-start gap-3 lg:w-56 xl:w-64">
                 <button
                   type="button"
                   disabled={switching}
@@ -680,7 +718,94 @@ export function AccountProfileSwitcher({
                 )}
               </div>
 
-              {/* Col 4: Trigger Real-Time Check & Switch Actions */}
+              {/* Col 4: Google Flow Chrome Profile Credit Box */}
+              <div className="flex-1 rounded-xl border border-stone-200/90 bg-stone-50/70 p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
+                  <span className="inline-flex items-center gap-1 font-bold text-stone-800">
+                    <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                    <span>Google Flow:</span>
+                    <code className="font-mono text-[11px] font-normal text-stone-500">
+                      {matchingFlow
+                        ? `Profil #${matchingFlow.index} (${matchingFlow.dirName})`
+                        : "Profil Chrome"}
+                    </code>
+                  </span>
+
+                  {matchingFlow ? (
+                    matchingFlow.credits >= 15 ? (
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                        ✓ Kuota Siap
+                      </span>
+                    ) : matchingFlow.credits > 0 ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                        ⚠️ Menipis
+                      </span>
+                    ) : (
+                      <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+                        ✗ Limit / 0 Kredit
+                      </span>
+                    )
+                  ) : (
+                    <span className="rounded bg-stone-200 px-1.5 py-0.5 text-[10px] font-semibold text-stone-600">
+                      Chrome Profil
+                    </span>
+                  )}
+                </div>
+
+                {matchingFlow ? (
+                  <div className="mt-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-stone-700">
+                        Sisa Kredit:{" "}
+                        <strong
+                          className={`font-mono text-xs ${
+                            matchingFlow.credits <= 0
+                              ? "text-rose-600"
+                              : matchingFlow.credits < 15
+                              ? "text-amber-600"
+                              : "text-indigo-700"
+                          }`}
+                        >
+                          {matchingFlow.credits}
+                        </strong>{" "}
+                        / 50
+                        <span className="ml-1 text-[10px] text-stone-400">
+                          (Terpakai: {50 - matchingFlow.credits})
+                        </span>
+                      </span>
+                      <span className="font-bold text-indigo-700">
+                        ~{Math.floor(matchingFlow.credits / 3)} Video
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-stone-200">
+                      <div
+                        className={`h-full transition-all ${
+                          matchingFlow.credits <= 0
+                            ? "bg-rose-500"
+                            : matchingFlow.credits < 15
+                            ? "bg-amber-500"
+                            : "bg-indigo-600"
+                        }`}
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(
+                              0,
+                              Math.round((matchingFlow.credits / 50) * 100)
+                            )
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-[11px] italic text-stone-500">
+                    Buka Makro Menu [5] untuk sinkron kredit profil
+                  </p>
+                )}
+              </div>
+
+              {/* Col 5: Trigger Real-Time Check & Switch Actions */}
               <div className="flex flex-wrap items-center justify-end gap-1.5 text-xs">
                 <button
                   type="button"

@@ -78,21 +78,40 @@ async function startPolling() {
           const text = update.message?.text || update.callback_query?.data || '(Non-teks)';
           console.log(`📩 [Pesan Masuk] Dari: ${sender?.first_name} (@${sender?.username || sender?.id}): "${text}"`);
 
-          // Teruskan ke API Studio
-          try {
-            const apiRes = await fetch(LOCAL_WEBHOOK_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(update),
-            });
-            const apiData = await apiRes.json().catch(() => ({}));
-            if (!apiRes.ok) {
-              console.error('❌ API Error:', apiRes.status, apiData);
-            } else {
-              console.log('   ✅ Berhasil diproses oleh Studio!');
+          // Teruskan ke API Studio dengan mekanisme retry jika server sedang sibuk/kompilasi
+          let forwarded = false;
+          let attempts = 0;
+          const maxAttempts = 3;
+
+          while (!forwarded && attempts < maxAttempts) {
+            attempts++;
+            try {
+              const apiRes = await fetch(LOCAL_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(update),
+              });
+              const apiData = await apiRes.json().catch(() => ({}));
+              if (!apiRes.ok) {
+                if (apiRes.status >= 500 && attempts < maxAttempts) {
+                  console.warn(   ⚠️ Server Studio sedang kompilasi/restarting (HTTP ). Mencoba lagi (/)...);
+                  await delay(2000);
+                  continue;
+                }
+                console.error('❌ API Error:', apiRes.status, apiData);
+              } else {
+                console.log('   ✅ Berhasil diproses oleh Studio!');
+              }
+              forwarded = true;
+            } catch (forwardErr) {
+              if (attempts < maxAttempts) {
+                console.warn(   ⚠️ Menunggu server Next.js aktif (/)...);
+                await delay(2500);
+              } else {
+                console.error('❌ Gagal meneruskan ke localhost:3000. Pastikan server dev berjalan!', forwardErr.message);
+                forwarded = true;
+              }
             }
-          } catch (forwardErr) {
-            console.error('❌ Gagal meneruskan ke localhost:3000. Pastikan server dev berjalan!', forwardErr.message);
           }
         }
       }
