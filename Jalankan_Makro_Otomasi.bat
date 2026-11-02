@@ -15,7 +15,7 @@ echo   [4] Migrasi (Pindahkan Downloads pzxc_*, Bersihkan Nama, dan Auto-Rakit F
 echo   [5] Cek Kredit (100%% Otomatis 10 Akun via Histori Google One)
 echo   [6] Test Download 1 Profil (Auto Masuk Project + Unduh Aset)
 echo   [7] Rekam Aksi Modular (Perekam Per-Menu: Open Project, Display, Close Panel, Download Aset 1-4)
-echo   [8] Jalankan Bot Telegram (Chat Copilot & Review Video via HP)
+echo   [8] Jalankan Bot Telegram (Chat Copilot dan Review Video via HP)
 echo   [9] Keluar
 echo.
 echo ===============================================================================
