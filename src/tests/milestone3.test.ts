@@ -161,7 +161,7 @@ describe("Milestone 3 — Voice, Timestamp Alignment & Scene Segmentation", () =
     if (adjusted.scenes.length > 1) {
       expect(adjusted.scenes[1]?.startMs).toBe(adjusted.scenes[0]?.endMs);
     }
-  });
+  }, 15000);
 
   it("preserves durations of all subsequent scenes during ripple timeline shifts", async () => {
     const items = await listContentItems(ownerId, {

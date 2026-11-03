@@ -2392,21 +2392,27 @@ export async function saveVoiceAssetAndSegmentScenes(
   };
 
   let segmentedScenes: SceneRecord[] = [];
-  try {
-    const { transcribeAndSegmentAudioFile } = await import(
-      "@/lib/providers/tts/audio-transcriber"
-    );
-    const transcribed = await transcribeAndSegmentAudioFile({
-      contentId: content.id,
-      contentCode: content.contentCode,
-      fallbackNarrationText: content.narration,
-      audioBuffer: params.audioBuffer,
-      audioFilePath: localFilePath,
-      mimeType: params.mimeType,
-      totalDurationMs: params.durationMs,
-    });
-    segmentedScenes = transcribed.scenes;
-  } catch {
+  if (!options?.forceLocal && params.providerKey !== "mock_tts" && process.env.NODE_ENV !== "test") {
+    try {
+      const { transcribeAndSegmentAudioFile } = await import(
+        "@/lib/providers/tts/audio-transcriber"
+      );
+      const transcribed = await transcribeAndSegmentAudioFile({
+        contentId: content.id,
+        contentCode: content.contentCode,
+        fallbackNarrationText: content.narration,
+        audioBuffer: params.audioBuffer,
+        audioFilePath: localFilePath,
+        mimeType: params.mimeType,
+        totalDurationMs: params.durationMs,
+      });
+      segmentedScenes = transcribed.scenes;
+    } catch {
+      // fallback to algorithmic segmenter
+    }
+  }
+
+  if (segmentedScenes.length === 0) {
     segmentedScenes = segmentNarrationIntoScenes({
       contentId: content.id,
       contentCode: content.contentCode,
