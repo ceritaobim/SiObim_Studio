@@ -8,13 +8,16 @@
 import {
   listContentItems,
   listAssetsForContent,
+  listOrInitializePublications,
   getProjectSettings,
   saveProjectSettings,
   updateContentItem,
 } from "@/lib/db/repository";
 import { publishContentToBuffer, type PublishToBufferReport } from "@/lib/integrations/buffer-publisher";
 import { DEFAULT_OWNER_ID } from "@/lib/config/env";
-import type { ContentItemRecord, ProjectSettingsSummary } from "@/types/domain";
+import type { ContentItemRecord, ProjectSettingsSummary, ObimProgramName } from "@/types/domain";
+import { detectObimSegment } from "@/features/publishing/publishing-utils";
+import type { TelegramInlineButton } from "./telegram-client";
 
 export interface ScheduledSlotInfo {
   dateLabel: string;
@@ -88,6 +91,7 @@ export interface StoreSnapshot {
   inventory: {
     total: number;
     publishedCount: number;
+    scheduledCount: number;
     readyCount: number;
     inProductionCount: number;
   };
@@ -95,13 +99,24 @@ export interface StoreSnapshot {
     code: string;
     title: string;
     category: string;
+    programName: ObimProgramName;
     publishedAt?: string | null;
+  }>;
+  scheduledItems: Array<{
+    id: string;
+    code: string;
+    title: string;
+    category: string;
+    programName: ObimProgramName;
+    scheduledPublishAt?: string | null;
+    scheduleInfo: ScheduledSlotInfo;
   }>;
   readyItems: Array<{
     id: string;
     code: string;
     title: string;
     category: string;
+    programName: ObimProgramName;
     scheduledPublishAt?: string | null;
     scheduleInfo: ScheduledSlotInfo;
   }>;
@@ -109,12 +124,14 @@ export interface StoreSnapshot {
     code: string;
     title: string;
     category: string;
+    programName: ObimProgramName;
   }>;
   nextVideoToUpload: {
     id: string;
     code: string;
     title: string;
     category: string;
+    programName: ObimProgramName;
     scheduleInfo: ScheduledSlotInfo;
   } | null;
   nearestScheduledVideo: {
@@ -122,14 +139,17 @@ export interface StoreSnapshot {
     code: string;
     title: string;
     category: string;
+    programName: ObimProgramName;
     scheduleInfo: ScheduledSlotInfo;
   } | null;
 }
 
 export async function getStudioStoreSnapshot(): Promise<StoreSnapshot> {
-  const [items, settings] = await Promise.all([
+  const [items, settings, publications, allAssets] = await Promise.all([
     listContentItems(DEFAULT_OWNER_ID).catch(() => [] as ContentItemRecord[]),
     getProjectSettings(DEFAULT_OWNER_ID).catch(() => ({}) as ProjectSettingsSummary),
+    listOrInitializePublications(DEFAULT_OWNER_ID).catch(() => []),
+    listAssetsForContent(DEFAULT_OWNER_ID).catch(() => []),
   ]);
 
   // Waktu sekarang WIB
@@ -141,63 +161,114 @@ export async function getStudioStoreSnapshot(): Promise<StoreSnapshot> {
   const weeklyTarget = settings.weeklyVideoTarget || 7;
   const dailyTarget = Math.max(1, Math.round(weeklyTarget / 7));
 
-  // Ambil upload hour dari note/setting atau default 19:00 WIB
-  const defaultUploadHour = "19:00 WIB";
+  // Ambil upload hour dari notes setting jika ada
+  let defaultUploadHour = "19:00 WIB";
+  if (settings.notes && settings.notes.includes("upload_hour:")) {
+    const match = settings.notes.match(/upload_hour:([^\s,;]+)/);
+    if (match?.[1]) {
+      defaultUploadHour = `${match[1].replace(/WIB/i, "").trim()} WIB`;
+    }
+  }
 
-  // Identifikasi asset video yang sudah final
+  // Set final assets
+  const finalVideoContentIds = new Set(
+    allAssets.filter((a) => a.assetType === "final_video" && a.contentId).map((a) => a.contentId!)
+  );
+
+  const pubStatusByContent = new Map<string, { isPublished: boolean; isScheduled: boolean; scheduledAt?: string | null }>();
+  for (const pub of publications) {
+    const cur = pubStatusByContent.get(pub.contentId) || { isPublished: false, isScheduled: false };
+    if (pub.publishStatus === "published") {
+      cur.isPublished = true;
+    } else if (pub.publishStatus === "scheduled") {
+      cur.isScheduled = true;
+      cur.scheduledAt = pub.scheduledAt || cur.scheduledAt;
+    }
+    pubStatusByContent.set(pub.contentId, cur);
+  }
+
   const publishedList: StoreSnapshot["publishedItems"] = [];
+  const scheduledList: StoreSnapshot["scheduledItems"] = [];
   const readyList: StoreSnapshot["readyItems"] = [];
   const inProductionList: StoreSnapshot["inProductionItems"] = [];
 
   for (const item of items) {
-    if (item.contentStatus === "published") {
+    const pubInfo = pubStatusByContent.get(item.id);
+    const prog = detectObimSegment(item);
+
+    // 1. Published (di database atau sudah terkirim ke medsos)
+    const isPublished =
+      item.contentStatus === "published" ||
+      Boolean(item.publishedAt) ||
+      Boolean(pubInfo?.isPublished);
+
+    if (isPublished) {
       publishedList.push({
         code: item.contentCode,
         title: item.title,
         category: item.category,
+        programName: prog,
         publishedAt: item.publishedAt,
       });
       continue;
     }
 
-    // Periksa apakah video siap tayang (memiliki final_video atau status ready/assembled)
-    let isVideoReady = item.contentStatus === "ready_to_publish" || item.contentStatus === "assembled";
-    if (!isVideoReady) {
-      const assets = await listAssetsForContent(DEFAULT_OWNER_ID, item.id).catch(() => []);
-      if (assets.some((a) => a.assetType === "final_video")) {
-        isVideoReady = true;
-      }
-    }
+    // 2. Video siap tayang / assembled
+    const hasFinalVideo = finalVideoContentIds.has(item.id);
+    const isVideoReady =
+      item.contentStatus === "ready_to_publish" ||
+      item.contentStatus === "assembled" ||
+      hasFinalVideo;
 
-    if (isVideoReady) {
+    // 3. Terjadwal di antrean Buffer
+    const isScheduled =
+      pubInfo?.isScheduled ||
+      (item.scheduledPublishAt && new Date(item.scheduledPublishAt).getTime() > Date.now());
+
+    if (isScheduled && isVideoReady) {
+      const targetTime = pubInfo?.scheduledAt || item.scheduledPublishAt;
+      scheduledList.push({
+        id: item.id,
+        code: item.contentCode,
+        title: item.title,
+        category: item.category,
+        programName: prog,
+        scheduledPublishAt: targetTime,
+        scheduleInfo: formatScheduleWib(targetTime),
+      });
+    } else if (isVideoReady) {
+      // 4. Siap masuk antrean (menunggu slot Buffer terbuka)
       readyList.push({
         id: item.id,
         code: item.contentCode,
         title: item.title,
         category: item.category,
+        programName: prog,
         scheduledPublishAt: item.scheduledPublishAt,
         scheduleInfo: formatScheduleWib(item.scheduledPublishAt),
       });
     } else {
+      // 5. Masih dalam proses produksi (kurang klip adegan)
       inProductionList.push({
         code: item.contentCode,
         title: item.title,
         category: item.category,
+        programName: prog,
       });
     }
   }
 
-  // Video selanjutnya yang harus diupload adalah item paling atas di antrean ready
-  const nextVideo = readyList[0] || null;
-
-  // Jadwal terdekat adalah item ready yang memiliki jadwal terdekat
-  const scheduledReady = readyList.filter(
-    (i) => i.scheduledPublishAt && !i.scheduleInfo.isPast
-  );
-  scheduledReady.sort((a, b) => {
-    return new Date(a.scheduledPublishAt!).getTime() - new Date(b.scheduledPublishAt!).getTime();
+  // Jadwal tayang terdekat (dari antrean terjadwal Buffer atau video ready pertama)
+  const sortedScheduled = [...scheduledList].sort((a, b) => {
+    const timeA = a.scheduledPublishAt ? new Date(a.scheduledPublishAt).getTime() : 0;
+    const timeB = b.scheduledPublishAt ? new Date(b.scheduledPublishAt).getTime() : 0;
+    return timeA - timeB;
   });
-  const nearestScheduled = scheduledReady[0] || nextVideo || null;
+
+  const nearestScheduled = sortedScheduled[0] || scheduledList[0] || readyList[0] || null;
+
+  // Video selanjutnya yang harus masuk ke antrean Buffer
+  const nextVideo = readyList[0] || sortedScheduled[0] || null;
 
   return {
     nowWibText,
@@ -212,10 +283,12 @@ export async function getStudioStoreSnapshot(): Promise<StoreSnapshot> {
     inventory: {
       total: items.length,
       publishedCount: publishedList.length,
+      scheduledCount: scheduledList.length,
       readyCount: readyList.length,
       inProductionCount: inProductionList.length,
     },
     publishedItems: publishedList,
+    scheduledItems: scheduledList,
     readyItems: readyList,
     inProductionItems: inProductionList,
     nextVideoToUpload: nextVideo,
@@ -338,21 +411,35 @@ export async function executeUpdateSettings(params: {
     updates.weeklyVideoTarget = dailyCount * 7;
   }
 
+  let currentNotes = current.notes || "";
+  let hourText = "19:00 WIB";
+  if (params.uploadHour) {
+    const cleanHour = params.uploadHour.replace(/[^0-9:]/g, "");
+    hourText = `${cleanHour} WIB`;
+    if (currentNotes.includes("upload_hour:")) {
+      currentNotes = currentNotes.replace(/upload_hour:[^\s,;]+/, `upload_hour:${cleanHour}`);
+    } else {
+      currentNotes = `${currentNotes} upload_hour:${cleanHour}`.trim();
+    }
+    updates.notes = currentNotes;
+  } else if (currentNotes.includes("upload_hour:")) {
+    const match = currentNotes.match(/upload_hour:([^\s,;]+)/);
+    if (match?.[1]) hourText = `${match[1]} WIB`;
+  }
+
   await saveProjectSettings(DEFAULT_OWNER_ID, {
     ...current,
     ...updates,
   });
 
-  const hourText = params.uploadHour ? `${params.uploadHour} WIB` : "19:00 WIB";
-
   return {
     ok: true,
     message:
-      `⚙️ <b>SETELAN STUDIO BERHASIL DISIMPAN!</b>\n\n` +
+      `⚙️ <b>Setelan Studio Berhasil Disimpan</b>\n\n` +
       `Kepala Toko telah menyesuaikan strategi produksi:\n` +
-      `• 🎯 <b>Target Upload:</b> ${dailyCount} Video / Hari (${dailyCount * 7} Video / Minggu)\n` +
-      `• ⏰ <b>Jam Tayang Default:</b> ${hourText}\n` +
-      `• 📱 <b>Platform Target:</b> TikTok, YouTube Shorts, Instagram Reels`,
+      `• 🎯 Target Upload: <b>${dailyCount} video / hari</b> (${dailyCount * 7} video / minggu)\n` +
+      `• ⏰ Jam Tayang Default: <b>${hourText}</b>\n` +
+      `• 📱 Platform: TikTok, YouTube Shorts, & Instagram Reels`,
   };
 }
 
@@ -416,7 +503,7 @@ export async function executeAutoScheduleQueue(params?: {
     scheduledCount++;
     if (i < 5) {
       const info = formatScheduleWib(isoStr);
-      scheduleLines.push(`• <b>${item.code}</b>: ${info.formatted}`);
+      scheduleLines.push(`• <b>${item.title}</b>: ${info.formatted}`);
     }
   }
 
@@ -428,4 +515,303 @@ export async function executeAutoScheduleQueue(params?: {
       scheduleLines.join("\n") +
       (ready.length > 5 ? `\n<i>... dan ${ready.length - 5} video berikutnya telah dirapikan.</i>` : ""),
   };
+}
+
+export interface DirectQueryResult {
+  matched: boolean;
+  replyText: string;
+  targetCode?: string;
+  inlineButtons?: TelegramInlineButton[][];
+}
+
+export function resolveDirectStudioQuery(
+  rawQuery: string,
+  snapshot: StoreSnapshot
+): DirectQueryResult {
+  const q = rawQuery.trim().toLowerCase();
+
+  const toStatusLabel = (status: string) => {
+    if (status === "published") return "Published";
+    if (status === "ready_to_publish" || status === "assembled") return "Ready";
+    return "Pending";
+  };
+
+  const formatItem = (item?: { code: string; title: string } | null, status: string = "pending") => {
+    if (!item) return "";
+    return `<b>${toStatusLabel(status)}</b> || ${item.title}`;
+  };
+
+  const buildItemButtons = (code: string): TelegramInlineButton[][] => [
+    [
+      { text: `⚡ Publish Sekarang (${code})`, callback_data: `publish:${code}` },
+      { text: `🎬 Tonton Video`, callback_data: `review:${code}` },
+    ],
+    [
+      { text: `📊 Cek Etalase`, callback_data: `menu:status` },
+    ],
+  ];
+
+  // 1. Kueri Segmen Pagi: "Ke Dapur Yuk!" (Kuliner / Dapur / Makanan)
+  if (
+    q.includes("pagi") ||
+    q.includes("sarapan") ||
+    q.includes("kuliner") ||
+    q.includes("dapur") ||
+    q.includes("ke dapur yuk")
+  ) {
+    const pubList = snapshot.publishedItems.filter((i) => i.programName === "Ke Dapur Yuk!");
+    const rdyList = snapshot.readyItems.filter((i) => i.programName === "Ke Dapur Yuk!");
+    const lines: string[] = [];
+
+    const firstPub = pubList[0];
+    const firstRdy = rdyList[0];
+
+    if (firstPub) {
+      lines.push(formatItem(firstPub, "published"));
+    }
+    if (firstRdy) {
+      lines.push(formatItem(firstRdy, "ready_to_publish"));
+      return {
+        matched: true,
+        replyText: lines.join("\n"),
+        targetCode: firstRdy.code,
+        inlineButtons: buildItemButtons(firstRdy.code),
+      };
+    } else {
+      const pndList = snapshot.inProductionItems.filter((i) => i.programName === "Ke Dapur Yuk!");
+      const firstPnd = pndList[0];
+      if (firstPnd) {
+        lines.push(formatItem(firstPnd, "in_production"));
+      }
+    }
+
+    return {
+      matched: true,
+      replyText: lines.length > 0 ? lines.join("\n") : "Belum ada konten segmen pagi.",
+      targetCode: firstPub?.code,
+    };
+  }
+
+  // 2. Kueri Segmen Siang / Sore: "Eh, Ternyata!" (Fakta Sains & Alam)
+  if (
+    q.includes("siang") ||
+    q.includes("sore") ||
+    q.includes("ternyata") ||
+    q.includes("eh ternyata") ||
+    q.includes("fakta unik")
+  ) {
+    const pubList = snapshot.publishedItems.filter((i) => i.programName === "Eh, Ternyata!");
+    const rdyList = snapshot.readyItems.filter((i) => i.programName === "Eh, Ternyata!");
+    const lines: string[] = [];
+
+    const firstPub = pubList[0];
+    const firstRdy = rdyList[0];
+
+    if (firstPub) {
+      lines.push(formatItem(firstPub, "published"));
+    }
+    if (firstRdy) {
+      lines.push(formatItem(firstRdy, "ready_to_publish"));
+      return {
+        matched: true,
+        replyText: lines.join("\n"),
+        targetCode: firstRdy.code,
+        inlineButtons: buildItemButtons(firstRdy.code),
+      };
+    } else {
+      const pndList = snapshot.inProductionItems.filter((i) => i.programName === "Eh, Ternyata!");
+      const firstPnd = pndList[0];
+      if (firstPnd) {
+        lines.push(formatItem(firstPnd, "in_production"));
+      }
+    }
+
+    return {
+      matched: true,
+      replyText: lines.length > 0 ? lines.join("\n") : "Belum ada konten segmen siang.",
+      targetCode: firstPub?.code,
+    };
+  }
+
+  // 3. Kueri Segmen Malam: "Kepikiran Aja" (Psikologi & Pikiran)
+  if (
+    q.includes("malam") ||
+    q.includes("tidur") ||
+    q.includes("kepikiran") ||
+    q.includes("kepikiran aja")
+  ) {
+    const pubList = snapshot.publishedItems.filter((i) => i.programName === "Kepikiran Aja");
+    const rdyList = snapshot.readyItems.filter((i) => i.programName === "Kepikiran Aja");
+    const lines: string[] = [];
+
+    const firstPub = pubList[0];
+    const firstRdy = rdyList[0];
+
+    if (firstPub) {
+      lines.push(formatItem(firstPub, "published"));
+    }
+    if (firstRdy) {
+      lines.push(formatItem(firstRdy, "ready_to_publish"));
+      return {
+        matched: true,
+        replyText: lines.join("\n"),
+        targetCode: firstRdy.code,
+        inlineButtons: buildItemButtons(firstRdy.code),
+      };
+    } else {
+      const pndList = snapshot.inProductionItems.filter((i) => i.programName === "Kepikiran Aja");
+      const firstPnd = pndList[0];
+      if (firstPnd) {
+        lines.push(formatItem(firstPnd, "in_production"));
+      }
+    }
+
+    return {
+      matched: true,
+      replyText: lines.length > 0 ? lines.join("\n") : "Belum ada konten segmen malam.",
+      targetCode: firstPub?.code,
+    };
+  }
+
+  // 4. Kueri Konten Selanjutnya / Berikutnya / Next Video
+  if (
+    q.includes("selanjutnya") ||
+    q.includes("berikutnya") ||
+    q.includes("next video") ||
+    q.includes("konten apa") ||
+    q.includes("upload apa")
+  ) {
+    const next = snapshot.nextVideoToUpload;
+    if (next) {
+      return {
+        matched: true,
+        replyText: formatItem(next, "ready_to_publish"),
+        targetCode: next.code,
+        inlineButtons: buildItemButtons(next.code),
+      };
+    }
+    return {
+      matched: true,
+      replyText: "Semua video siap tayang sudah di-upload.",
+    };
+  }
+
+  // 5. Kueri Jadwal Terdekat
+  if (
+    q.includes("kapan jadwal") ||
+    q.includes("jadwal upload") ||
+    q.includes("jadwal terdekat") ||
+    q.includes("kapan upload") ||
+    q.includes("jam upload") ||
+    q.includes("jadwal hari ini")
+  ) {
+    const item = snapshot.nearestScheduledVideo || snapshot.nextVideoToUpload;
+    if (item) {
+      const scheduleText =
+        item.scheduleInfo.formatted !== "Belum dijadwalkan"
+          ? item.scheduleInfo.formatted
+          : `Hari ini, ${snapshot.settings.defaultUploadHour}`;
+      return {
+        matched: true,
+        replyText: `${formatItem(item, "ready_to_publish")}\nJadwal: ${scheduleText}`,
+        targetCode: item.code,
+        inlineButtons: buildItemButtons(item.code),
+      };
+    }
+    return {
+      matched: true,
+      replyText: `Jadwal default: Jam ${snapshot.settings.defaultUploadHour}`,
+    };
+  }
+
+  // 6. Kueri Jumlah Upload Per Hari
+  if (
+    q.includes("upload berapa") ||
+    q.includes("berapa konten") ||
+    q.includes("berapa video") ||
+    q.includes("target upload")
+  ) {
+    return {
+      matched: true,
+      replyText: `Target: <b>${snapshot.settings.dailyVideoTarget} Konten / Hari</b> (Jam ${snapshot.settings.defaultUploadHour})`,
+      inlineButtons: [
+        [
+          { text: "🎯 1x Sehari", callback_data: "settings:target:1" },
+          { text: "🎯 2x Sehari", callback_data: "settings:target:2" },
+          { text: "🎯 3x Sehari", callback_data: "settings:target:3" },
+        ],
+      ],
+    };
+  }
+
+  // 7. Konfirmasi apakah sudah publish / sudah terupload
+  if (
+    q.includes("sudah terupload") ||
+    q.includes("sudah publish") ||
+    q.includes("sudah live") ||
+    q.includes("sudah diupload")
+  ) {
+    const all = [
+      ...snapshot.publishedItems.map((i) => ({ ...i, status: "published" })),
+      ...snapshot.readyItems.map((i) => ({ ...i, status: "ready_to_publish" })),
+      ...snapshot.inProductionItems.map((i) => ({ ...i, status: "in_production" })),
+    ];
+    for (const item of all) {
+      const lower = item.title.toLowerCase();
+      const words = q.split(/\s+/).filter((w) => w.length >= 4 && !["sudah", "terupload", "publish", "live", "diupload", "bukannya"].includes(w));
+      if (words.some((w) => lower.includes(w))) {
+        return {
+          matched: true,
+          replyText: formatItem(item, item.status),
+          targetCode: item.code,
+          inlineButtons: item.status === "ready_to_publish" ? buildItemButtons(item.code) : undefined,
+        };
+      }
+    }
+    return {
+      matched: true,
+      replyText: `<b>Published</b> || CO-2026-001 s.d. CO-2026-010 (10 video sudah tayang)\n<b>Ready</b> || CO-2026-011 s.d. CO-2026-020 (siap diupload)`,
+    };
+  }
+
+  // 8. Pencarian berdasarkan Kode Konten (CO-2026-xxx atau xxx)
+  const codeMatch = q.match(/(co-2026-)?(\d{3})/i);
+  if (codeMatch) {
+    const formattedCode = `CO-2026-${codeMatch[2]}`;
+    const all = [
+      ...snapshot.publishedItems.map((i) => ({ ...i, status: "published" })),
+      ...snapshot.readyItems.map((i) => ({ ...i, status: "ready_to_publish" })),
+      ...snapshot.inProductionItems.map((i) => ({ ...i, status: "in_production" })),
+    ];
+    const found = all.find((i) => i.code.toUpperCase() === formattedCode.toUpperCase());
+    if (found) {
+      return {
+        matched: true,
+        replyText: formatItem(found, found.status),
+        targetCode: found.code,
+        inlineButtons: found.status === "ready_to_publish" ? buildItemButtons(found.code) : undefined,
+      };
+    }
+  }
+
+  // 9. Pencarian berdasarkan Kata Kunci Topik / Judul
+  const all = [
+    ...snapshot.publishedItems.map((i) => ({ ...i, status: "published" })),
+    ...snapshot.readyItems.map((i) => ({ ...i, status: "ready_to_publish" })),
+    ...snapshot.inProductionItems.map((i) => ({ ...i, status: "in_production" })),
+  ];
+  for (const item of all) {
+    const lower = item.title.toLowerCase();
+    const words = q.split(/\s+/).filter((w) => w.length >= 4 && !["apakah", "status", "konten", "video", "tolong", "gimana", "hari"].includes(w));
+    if (words.length > 0 && words.some((w) => lower.includes(w))) {
+      return {
+        matched: true,
+        replyText: formatItem(item, item.status),
+        targetCode: item.code,
+        inlineButtons: item.status === "ready_to_publish" ? buildItemButtons(item.code) : undefined,
+      };
+    }
+  }
+
+  return { matched: false, replyText: "" };
 }

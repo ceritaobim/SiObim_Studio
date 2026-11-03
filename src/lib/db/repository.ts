@@ -61,6 +61,7 @@ import {
   executeVideoAssembly,
   type AssemblyValidationAndBuildResult,
 } from "@/features/assembly/ffmpeg-assembler";
+import { getStandardHashtags } from "@/lib/utils/hashtag-helper";
 
 interface LocalStoreData {
   settingsByOwner: Record<string, ProjectSettingsSummary>;
@@ -4128,8 +4129,7 @@ export async function listOrInitializePublications(
       );
       if (!existing) {
         const now = new Date().toISOString();
-        const hashtags =
-          "#ceritaobim #faktaunik #faktasains #origamistopmotion #edukasishorts";
+        const hashtags = getStandardHashtags(item.title, item.topic);
         const record: PlatformPublicationRecord = {
           id: crypto.randomUUID(),
           contentId: item.id,

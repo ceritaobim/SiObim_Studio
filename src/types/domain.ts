@@ -78,6 +78,8 @@ export interface ProjectSettingsSummary {
   maxSceneRetries: number;
   videoGenerationMode: VideoGenerationMode;
   targetPlatforms: PlatformTarget[];
+  defaultUploadHour?: string;
+  notes?: string;
   googleSheetUrl?: string;
   googleSheetWebAppUrl?: string;
   updatedAt?: string;

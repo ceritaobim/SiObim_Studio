@@ -5,6 +5,8 @@
  * Mendukung pengiriman pesan teks berformat HTML, video, chat action, dan inline keyboard.
  */
 
+import { cleanToPlainText } from "./telegram-formatter";
+
 export interface TelegramInlineButton {
   text: string;
   callback_data?: string;
@@ -90,8 +92,9 @@ export class TelegramClient {
           err.message.includes("entity") ||
           err.message.includes("tag"))
       ) {
-        console.warn("Telegram sendMessage HTML parse failed, retrying plain text:", err.message);
+        console.warn("Telegram sendMessage HTML parse failed, retrying clean plain text:", err.message);
         delete payload.parse_mode;
+        payload.text = cleanToPlainText(text);
         return await this.callApi("sendMessage", payload);
       }
       throw err;

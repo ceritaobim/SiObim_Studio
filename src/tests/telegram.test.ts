@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TelegramClient } from "@/features/telegram/telegram-client";
 import { TelegramService } from "@/features/telegram/telegram-service";
 import { formatTelegramHtml } from "@/features/telegram/telegram-formatter";
-import { getStudioStoreSnapshot } from "@/features/telegram/studio-store-manager";
+import {
+  getStudioStoreSnapshot,
+  resolveDirectStudioQuery,
+} from "@/features/telegram/studio-store-manager";
 
 describe("Telegram Bot & Security Whitelist Integration", () => {
   beforeEach(() => {
@@ -147,5 +150,41 @@ describe("Telegram Bot & Security Whitelist Integration", () => {
       expect(snapshot.nextVideoToUpload.code).toMatch(/^CO-\d{4}-\d{3}$/);
       expect(snapshot.nextVideoToUpload.title.length).toBeGreaterThan(0);
     }
+  });
+
+  it("directly answers segment queries in ultra-concise '[Status] || [Judul]' format with zero fluff", async () => {
+    const snapshot = await getStudioStoreSnapshot();
+
+    // 1. Kueri segmen pagi
+    const morningRes = resolveDirectStudioQuery("apa konten segmen pagi hari ini?", snapshot);
+    expect(morningRes.matched).toBe(true);
+    expect(morningRes.replyText).toContain("Published");
+    expect(morningRes.replyText).toContain("Rahasia Nasi Goreng Enak");
+    expect(morningRes.replyText).not.toContain("Halo Mas");
+    expect(morningRes.replyText).not.toContain("**");
+    expect(morningRes.replyText).not.toContain("###");
+
+    // 2. Kueri konten selanjutnya
+    const nextRes = resolveDirectStudioQuery("konten apa selanjutnya yang diupload?", snapshot);
+    expect(nextRes.matched).toBe(true);
+    expect(nextRes.replyText).toContain("Ready");
+    expect(nextRes.replyText).not.toContain("Halo");
+
+    // 3. Kueri jadwal upload terdekat
+    const scheduleRes = resolveDirectStudioQuery("kapan jadwal upload terdekat?", snapshot);
+    expect(scheduleRes.matched).toBe(true);
+    expect(scheduleRes.replyText).toContain("Jadwal:");
+
+    // 4. Kueri upload berapa konten per hari
+    const targetRes = resolveDirectStudioQuery("upload berapa konten per hari ?", snapshot);
+    expect(targetRes.matched).toBe(true);
+    expect(targetRes.replyText).toContain("Target:");
+    expect(targetRes.replyText).toContain("Konten / Hari");
+
+    // 5. Kueri spesifik judul nasi goreng
+    const specificRes = resolveDirectStudioQuery("status nasi goreng", snapshot);
+    expect(specificRes.matched).toBe(true);
+    expect(specificRes.replyText).toContain("Published");
+    expect(specificRes.replyText).toContain("Rahasia Nasi Goreng Enak");
   });
 });

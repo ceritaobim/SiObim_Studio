@@ -8,6 +8,7 @@ import {
   updatePlatformPublication,
 } from "@/lib/db/repository";
 import { createServerSupabaseAdminClient } from "@/lib/auth/owner-auth";
+import { getStandardHashtags } from "@/lib/utils/hashtag-helper";
 import {
   getBufferConnectedChannels,
   publishVideoToBufferChannel,
@@ -139,10 +140,10 @@ export async function publishContentToBuffer(
     );
   }
 
-  // 4. Construct rich post text with title, description, and hashtags
-  const defaultHashtags = "#CeritaObim #FaktaUnik #SainsSeru #Origami #Animasi #FYP";
+  // 4. Construct rich post text with title, description, and strict 3 standard hashtags
+  const standardHashtags = getStandardHashtags(content.title, content.topic);
   const defaultCaption =
-    `${content.title}\n\n${content.hook || ""}\n\n${defaultHashtags}`.trim();
+    `${content.title}\n\n${content.hook || ""}\n\n${standardHashtags}`.trim();
 
   // 5. Post to each matching channel (with duplicate safeguard)
   const existingPubs = await listOrInitializePublications(ownerId, contentId).catch(() => []);
@@ -152,15 +153,20 @@ export async function publishContentToBuffer(
     try {
       let channelText = customCaption?.trim();
       if (!channelText) {
+        let rawText = "";
         if (ch.service === "tiktok" && content.tiktokCaption?.trim()) {
-          channelText = content.tiktokCaption.trim();
+          rawText = content.tiktokCaption.trim();
         } else if (ch.service === "instagram" && content.instagramCaption?.trim()) {
-          channelText = content.instagramCaption.trim();
+          rawText = content.instagramCaption.trim();
         } else if (ch.service === "youtube" && content.youtubeDescription?.trim()) {
-          channelText = content.youtubeDescription.trim();
+          rawText = content.youtubeDescription.trim();
         } else {
-          channelText = defaultCaption;
+          rawText = defaultCaption;
         }
+
+        // Pastikan caption diakhiri dengan tepat 3 hashtag resmi
+        const withoutOldTags = rawText.replace(/(?:#[a-zA-Z0-9_]+\s*)+$/g, "").trim();
+        channelText = `${withoutOldTags}\n\n${standardHashtags}`.trim();
       }
 
       const existingPub = existingPubs.find(

@@ -24,6 +24,7 @@ import {
 } from "@/lib/db/repository";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ProductionPriorityCard } from "@/components/dashboard/production-priority-card";
+import { DashboardProgressTable } from "@/components/dashboard/dashboard-progress-table";
 
 export const dynamic = "force-dynamic";
 
@@ -221,73 +222,13 @@ export default async function MonitorPage() {
         </Link>
       </div>
 
-      {/* 3. PIPELINE OVERVIEW (Inspired by "My Tasks" in Reference UI) */}
-      <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-indigo-50 pb-4">
-          <div className="flex items-center gap-2">
-            <Layers className="h-5 w-5 text-indigo-600" />
-            <h3 className="text-base font-black text-slate-900">
-              Antrean Video Siap Tayang (00Final.mp4)
-            </h3>
-          </div>
-          <Link
-            href="/publishing"
-            className="text-xs font-bold text-indigo-600 hover:text-indigo-800"
-          >
-            Lihat Semua Antrean &rarr;
-          </Link>
-        </div>
-
-        <div className="space-y-3">
-          {itemsWithFinalVideo.slice(0, 5).map((item) => (
-            <div
-              key={item.id}
-              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-slate-50/40 p-4 hover:bg-white hover:border-indigo-200 transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-bold text-xs">
-                  ✓
-                </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                      {item.contentCode}
-                    </span>
-                    <span className="truncate text-xs font-bold text-slate-900">
-                      {item.title}
-                    </span>
-                  </div>
-                  <p className="truncate text-[11px] text-slate-500 mt-0.5">
-                    {item.programName || "Sains Unik"} • Format: Vertical 9:16 Stop-Motion Origami
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <a
-                  href={`/api/assembly?contentId=${encodeURIComponent(
-                    item.id
-                  )}&download=1`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs"
-                >
-                  <Play className="h-3 w-3 text-slate-500" />
-                  <span>Preview</span>
-                </a>
-
-                <Link
-                  href="/publishing"
-                  className="inline-flex items-center gap-1 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-indigo-700 transition-colors"
-                >
-                  <Send className="h-3 w-3" />
-                  <span>Publish</span>
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* 4. MASTER PROGRESS TABLE (Per User Instruction: Jadwal, Segmen, Judul, Audio, Video, Shorts, Reels, TikTok) */}
+      <DashboardProgressTable
+        items={items}
+        allAssets={allAssets}
+        scenesByContent={scenesByContent}
+        allPublications={allPubs}
+      />
     </div>
   );
 }

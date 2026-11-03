@@ -53,6 +53,8 @@ export const ProjectSettingsInputSchema = z
       .min(1, "Pilih minimal satu platform target"),
     googleSheetUrl: z.string().trim().max(1000).optional().default(""),
     googleSheetWebAppUrl: z.string().trim().max(1000).optional().default(""),
+    defaultUploadHour: z.string().trim().max(50).optional().default("19:00 WIB"),
+    notes: z.string().trim().max(5000).optional().default(""),
   })
   .refine(
     (val) => val.targetSceneSecondsMin <= val.targetSceneSecondsMax,

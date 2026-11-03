@@ -14,6 +14,7 @@ import {
   executeSetSchedule,
   executeUpdateSettings,
   executeAutoScheduleQueue,
+  resolveDirectStudioQuery,
 } from "./studio-store-manager";
 import {
   listContentItems,
@@ -170,10 +171,49 @@ export class TelegramService {
       return this.approveContent(chatId, code);
     }
 
-    // Obrolan Bebas & Perintah Fleksibel (Google Gemini AI Kepala Toko Copilot)
-    await this.client.sendChatAction(chatId, "typing");
+    // -------------------------------------------------------------------------
+    // RESPON CEPAT & AKURAT (KEPALA TOKO STORE MANAGER FAST PATH)
+    // -------------------------------------------------------------------------
 
+    // 1. Ubah target video per hari (contoh: "ubah jadi 2 video per hari", "target 2 video sehari")
+    const targetMatch = text.match(/(?:ubah|ganti|jadikan|target)\s*(?:jadi\s*)?(\d+)\s*(?:video|konten)?\s*(?:per\s*hari|sehari)?/i);
+    if (targetMatch && targetMatch[1]) {
+      const n = parseInt(targetMatch[1], 10);
+      if (n > 0 && n <= 10) {
+        await executeUpdateSettings({ dailyTarget: n });
+        return this.client.sendMessage(
+          chatId,
+          `⚙️ Target diubah: <b>${n} Konten / Hari</b>`,
+          { parse_mode: "HTML" }
+        );
+      }
+    }
+
+    // 2. Ubah jam upload (contoh: "ubah jam upload jadi jam 20:00", "ganti jam upload 19:00")
+    const hourMatch = text.match(/(?:ubah|ganti)\s*(?:jam\s*(?:upload|tayang)?\s*(?:jadi\s*(?:jam\s*)?)?)(\d{1,2}[:.]\d{2})/i);
+    if (hourMatch && hourMatch[1]) {
+      const h = hourMatch[1].replace(".", ":");
+      await executeUpdateSettings({ uploadHour: h });
+      return this.client.sendMessage(
+        chatId,
+        `⚙️ Jam upload diubah: <b>${h} WIB</b>`,
+        { parse_mode: "HTML" }
+      );
+    }
+
+    // 3. Resolusi Cepat Langsung Format: [Status] || [Judul]
+    // Menjawab instan, 100% presisi tanpa embel-embel, tanpa greeting, dan tanpa halusinasi
     const snapshot = await getStudioStoreSnapshot();
+    const directRes = resolveDirectStudioQuery(text, snapshot);
+    if (directRes.matched) {
+      return this.client.sendMessage(chatId, directRes.replyText, {
+        parse_mode: "HTML",
+        reply_markup: directRes.inlineButtons ? { inline_keyboard: directRes.inlineButtons } : undefined,
+      });
+    }
+
+    // Obrolan Bebas & Perintah Fleksibel Lanjutan (Google Gemini AI Kepala Toko Copilot)
+    await this.client.sendChatAction(chatId, "typing");
 
     const aiRes = await askGeminiCopilot({
       userMessage: text,
@@ -188,7 +228,7 @@ export class TelegramService {
     if (nextItem) {
       inlineButtons.push([
         {
-          text: `⚡ Publish Sekarang (${nextItem.code})`,
+          text: `⚡ Publish Sekarang`,
           callback_data: `publish:${nextItem.code}`,
         },
         {
@@ -200,7 +240,7 @@ export class TelegramService {
 
     inlineButtons.push([
       { text: "📊 Cek Etalase", callback_data: "menu:status" },
-      { text: "🎯 Target: 1x Sehari", callback_data: "settings:target:1" },
+      { text: "🎯 1x Sehari", callback_data: "settings:target:1" },
       { text: "🎯 2x Sehari", callback_data: "settings:target:2" },
     ]);
 
@@ -308,18 +348,18 @@ export class TelegramService {
     if (snap.readyItems.length === 0) {
       msg += `<i>Semua stok etalase sudah tayang! Silakan rakit konten baru di dapur.</i>\n`;
     } else {
-      snap.readyItems.slice(0, 6).forEach((item, idx) => {
-        msg += `${idx + 1}. <b>${item.code}</b>: "${item.title}"\n   👉 <i>Jadwal: ${item.scheduleInfo.formatted}</i>\n`;
+      snap.readyItems.slice(0, 5).forEach((item, idx) => {
+        msg += `${idx + 1}. <b>${item.title}</b>\n   👉 <i>Jadwal: ${item.scheduleInfo.formatted}</i>\n`;
       });
-      if (snap.readyItems.length > 6) {
-        msg += `<i>... dan ${snap.readyItems.length - 6} video siap tayang lainnya.</i>\n`;
+      if (snap.readyItems.length > 5) {
+        msg += `<i>... dan ${snap.readyItems.length - 5} video siap tayang lainnya.</i>\n`;
       }
     }
 
     // 2. Sudah Tayang
     msg += `\n🚀 <b>SUDAH TAYANG DI MEDSOS (${snap.inventory.publishedCount} Video):</b>\n`;
     snap.publishedItems.slice(0, 5).forEach((item) => {
-      msg += `• [${item.code}] ${item.title} ✅\n`;
+      msg += `• <b>${item.title}</b> ✅\n`;
     });
     if (snap.publishedItems.length > 5) {
       msg += `<i>... dan ${snap.publishedItems.length - 5} video live lainnya.</i>\n`;
@@ -327,7 +367,7 @@ export class TelegramService {
 
     // 3. Dapur Produksi
     msg += `\n⏳ <b>SEDANG DIRAKIT DI DAPUR (${snap.inventory.inProductionCount} Konten):</b>\n`;
-    msg += `• <i>Stok klip origami sedang diproduksi & menunggu final assembly.</i>\n\n`;
+    msg += `• <i>Stok klip origami sedang diproduksi & menunggu perakitan final.</i>\n\n`;
     msg += `⚙️ <b>Setelan:</b> ${snap.settings.dailyVideoTarget} Video/Hari • Jam ${snap.settings.defaultUploadHour}`;
 
     const inlineButtons: TelegramInlineButton[][] = [];
@@ -335,11 +375,11 @@ export class TelegramService {
     if (snap.nextVideoToUpload) {
       inlineButtons.push([
         {
-          text: `⚡ Publish Sekarang (${snap.nextVideoToUpload.code})`,
+          text: `⚡ Publish Sekarang`,
           callback_data: `publish:${snap.nextVideoToUpload.code}`,
         },
         {
-          text: `🎬 Review Video`,
+          text: `🎬 Tonton Video`,
           callback_data: `review:${snap.nextVideoToUpload.code}`,
         },
       ]);
@@ -564,6 +604,13 @@ export class TelegramService {
       const targetCount = parseInt(sub, 10) || 1;
       await this.client.answerCallbackQuery(callbackId, `Target diset ${targetCount}x/hari!`);
       const res = await executeUpdateSettings({ dailyTarget: targetCount });
+      await this.client.sendMessage(chatId, res.message);
+      return { ok: true };
+    }
+
+    if (action === "settings" && codeOrArg === "hour" && sub) {
+      await this.client.answerCallbackQuery(callbackId, `Jam tayang diubah ke ${sub} WIB!`);
+      const res = await executeUpdateSettings({ uploadHour: sub });
       await this.client.sendMessage(chatId, res.message);
       return { ok: true };
     }

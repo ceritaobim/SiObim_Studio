@@ -45,108 +45,20 @@ import type {
 import { useStudioMode } from "@/context/studio-mode-context";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SocialCopyEditorModal } from "./social-copy-editor-modal";
+import { getStandardHashtags } from "@/lib/utils/hashtag-helper";
+import {
+  type PublishingTimeSlot,
+  PUBLISHING_TIME_SLOTS,
+  detectObimSegment,
+  getDefaultSlotForItem,
+} from "./publishing-utils";
 
-export interface PublishingTimeSlot {
-  id: "pagi" | "sore" | "malam";
-  label: "Pagi" | "Sore" | "Malam";
-  timeWib: string; // "07:00", "16:30", "19:30"
-  icon: string;
-  title: string;
-  peakDescription: string;
-  defaultProgram: ObimProgramName;
-  programTag: string;
-}
-
-export const PUBLISHING_TIME_SLOTS: PublishingTimeSlot[] = [
-  {
-    id: "pagi",
-    label: "Pagi",
-    timeWib: "07:00",
-    icon: "🌅",
-    title: "Pagi (07:00 WIB)",
-    peakDescription: "Peak Sarapan & Perjalanan Pagi (07:00 WIB)",
-    defaultProgram: "Ke Dapur Yuk!",
-    programTag: "Kuliner / Sains Makanan",
-  },
-  {
-    id: "sore",
-    label: "Sore",
-    timeWib: "16:30",
-    icon: "🌇",
-    title: "Sore (16:30 WIB)",
-    peakDescription: "Peak Rehat Sore & Pulang Kantor (16:30 WIB)",
-    defaultProgram: "Eh, Ternyata!",
-    programTag: "Fakta Sains & Mitos",
-  },
-  {
-    id: "malam",
-    label: "Malam",
-    timeWib: "19:30",
-    icon: "🌙",
-    title: "Malam (19:30 WIB)",
-    peakDescription: "Prime Time Santai & Sebelum Tidur (19:30 WIB)",
-    defaultProgram: "Kepikiran Aja",
-    programTag: "Psikologi & Overthinking",
-  },
-];
-
-export function detectObimSegment(item: {
-  programName?: string;
-  category?: string;
-  topic?: string;
-  title?: string;
-}): ObimProgramName {
-  if (
-    item.programName === "Ke Dapur Yuk!" ||
-    item.programName === "Kepikiran Aja" ||
-    item.programName === "Eh, Ternyata!"
-  ) {
-    return item.programName as ObimProgramName;
-  }
-  const text = `${item.category || ""} ${item.topic || ""} ${item.title || ""}`.toLowerCase();
-
-  // 1. Konten Makanan / Dapur -> Ke Dapur Yuk! (Default Pagi 07:00 WIB)
-  if (
-    text.includes("makan") ||
-    text.includes("dapur") ||
-    text.includes("kuliner") ||
-    text.includes("resep") ||
-    text.includes("nasi") ||
-    text.includes("bawang") ||
-    text.includes("nanas") ||
-    text.includes("piring") ||
-    text.includes("lemak") ||
-    text.includes("minum")
-  ) {
-    return "Ke Dapur Yuk!";
-  }
-
-  // 2. Konten Overthinking / Pikiran / Tidur -> Kepikiran Aja (Default Malam 19:30 WIB)
-  if (
-    text.includes("psikolog") ||
-    text.includes("neuro") ||
-    text.includes("mandi") ||
-    text.includes("tidur") ||
-    text.includes("mimpi") ||
-    text.includes("otak") ||
-    text.includes("deja vu") ||
-    text.includes("overthink") ||
-    text.includes("hujan") ||
-    text.includes("ngantuk")
-  ) {
-    return "Kepikiran Aja";
-  }
-
-  // 3. Segmen Ternyata / Fakta Sains & Semesta -> Eh, Ternyata! (Default Sore 16:30 WIB)
-  return "Eh, Ternyata!";
-}
-
-export function getDefaultSlotForItem(item: ContentItemRecord): PublishingTimeSlot {
-  const seg = detectObimSegment(item);
-  if (seg === "Ke Dapur Yuk!") return PUBLISHING_TIME_SLOTS[0]!; // Pagi (07:00)
-  if (seg === "Eh, Ternyata!") return PUBLISHING_TIME_SLOTS[1]!; // Sore (16:30)
-  return PUBLISHING_TIME_SLOTS[2]!; // Malam (19:30)
-}
+export {
+  type PublishingTimeSlot,
+  PUBLISHING_TIME_SLOTS,
+  detectObimSegment,
+  getDefaultSlotForItem,
+};
 
 function parseIsoToWibComponents(isoStr?: string | null) {
   const nowWib = new Date(Date.now() + 7 * 60 * 60 * 1000);
@@ -193,29 +105,32 @@ function getPlatformCopy(
   item: ContentItemRecord,
   platform: "tiktok" | "instagram" | "youtube"
 ): string {
-  const defaultHashtags = "#CeritaObim #FaktaUnik #Sains #Origami #Animasi #FYP";
+  const hashtags = getStandardHashtags(item.title, item.topic);
   if (platform === "tiktok") {
-    return (
-      item.tiktokCaption?.trim() ||
-      `${item.title}\n\n${item.hook || ""}\n\n${
-        item.cta || "Apa pendapatmu? Tulis di kolom komentar!"
-      }\n\n${defaultHashtags}`.trim()
-    );
+    if (item.tiktokCaption?.trim()) {
+      const clean = item.tiktokCaption.trim().replace(/(?:#[a-zA-Z0-9_]+\s*)+$/g, "").trim();
+      return `${clean}\n\n${hashtags}`;
+    }
+    return `${item.title}\n\n${item.hook || ""}\n\n${
+      item.cta || "Apa pendapatmu? Tulis di kolom komentar!"
+    }\n\n${hashtags}`.trim();
   }
   if (platform === "instagram") {
-    return (
-      item.instagramCaption?.trim() ||
-      `${item.title} ✨\n\n${item.hook || ""}\n\n${
-        item.cta || "Yuk diskusi di kolom komentar!"
-      }\n.\n.\n#ceritaobim #faktaunik #sainsindonesia #origami #stopmotion #reelsindonesia`.trim()
-    );
+    if (item.instagramCaption?.trim()) {
+      const clean = item.instagramCaption.trim().replace(/(?:#[a-zA-Z0-9_]+\s*)+$/g, "").trim();
+      return `${clean}\n\n${hashtags}`;
+    }
+    return `${item.title} ✨\n\n${item.hook || ""}\n\n${
+      item.cta || "Yuk diskusi di kolom komentar!"
+    }\n\n${hashtags}`.trim();
   }
-  return (
-    item.youtubeDescription?.trim() ||
-    `${item.title}\n\n${item.hook || ""}\n\n${
-      item.cta || "Subscribe untuk fakta unik CeritaObim setiap hari!"
-    }\n\n#shorts #ceritaobim #faktaunik #edukasi`.trim()
-  );
+  if (item.youtubeDescription?.trim()) {
+    const clean = item.youtubeDescription.trim().replace(/(?:#[a-zA-Z0-9_]+\s*)+$/g, "").trim();
+    return `${clean}\n\n${hashtags}`;
+  }
+  return `${item.title}\n\n${item.hook || ""}\n\n${
+    item.cta || "Subscribe untuk fakta unik CeritaObim setiap hari!"
+  }\n\n${hashtags}`.trim();
 }
 
 function formatPublishSchedule(isoStr?: string | null) {

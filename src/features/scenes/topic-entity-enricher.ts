@@ -189,31 +189,61 @@ const TOPIC_ARCHETYPES: TopicArchetype[] = [
 
   // 5. Jantung Udang
   {
-    match: (t) => t.includes("udang") || t.includes("jantung udang"),
+    match: (t) => t.includes("jantung udang") || (t.includes("udang") && (t.includes("cephalothorax") || t.includes("organ vital") || t.includes("jantung") || t.includes("bukan di dada"))),
     coverProps: [
       "Model udang besar kertas lipat oranye dengan kap kepala yang terbuka",
       "Jantung merah origami berdenyut cepat memancarkan cahaya kertas merah",
       "Kaca pembesar kertas bergetar di tangan Obim",
     ],
     coverAction:
-      "Detik ke-0 langsung aksi: Obim sedang memegang udang origami oranye besar. Tiba-tiba cangkang kepala udang membuka seperti kap mobil sport kertas, memperlihatkan sebuah jantung origami merah menyala yang berdenyut kencang 'deg-deg-deg' di dalam batok kepalanya! Obim melompat mundur kaget dengan mata melotot takjub menatap kepala udang.",
+      "Detik ke-0 langsung aksi: Obim sedang memegang udang origami oranye besar. Tiba-tiba cangkang kepala udang membuka seperti kap mobil sport kertas, memperlihatkan sebuah jantung origami merah menyala yang berdenyut kencang 'deg-deg-deg' di dalam batok kepalanya! Obim melompat mundur kaget dengan mata melotot takjub menatap kepala udang. (Mulut terkatup rapat, ekspresi murni dari mata dan pose, NO lip sync, NO speech).",
     coverStance:
-      "Obim melompat mundur setengah langkah, kaca pembesar terangkat di depan dada, mata terbelalak kaget menunjuk kepala udang.",
+      "Obim melompat mundur setengah langkah, kaca pembesar terangkat di depan dada, mata terbelalak kaget menunjuk kepala udang dengan mulut tertutup rapat.",
     mechanismProps: [
       "Potongan anatomi cephalothorax udang dari kertas lipat bertingkat",
       "Lambung dan organ vital kertas yang terlindung di dalam cangkang kepala",
     ],
     mechanismAction:
-      "Cangkang kepala udang kertas terbuka seperti diorama pop-up, memperlihatkan susunan organ vital udang yang semua berkumpul di kepala demi perlindungan cangkang terkerasnya.",
+      "Cangkang kepala udang kertas terbuka seperti diorama pop-up, memperlihatkan susunan organ vital udang yang semua berkumpul di kepala demi perlindungan cangkang terkerasnya. (Obim mengamati dalam diam dengan mulut terkatup, NO speech, NO dialogue).",
     resolutionProps: [
       "Piring saji udang bakar kertas origami",
       "Obim tersenyum sambil memegang udang kertas ramah",
     ],
     resolutionAction:
-      "Obim tersenyum lebar sambil memegang miniatur udang kertas lucu, mengajak penonton yang hobi makan udang untuk komen apakah mereka baru tahu fakta ini.",
+      "Obim tersenyum lebar sambil memegang miniatur udang kertas lucu, tersenyum ramah ke arah penonton (mulut terkatup rapat tanpa gerakan bibir berbicara, NO speech).",
     sfxHook: "Detak kertas cepat 'deg-deg-deg' disusul hentakan pop (1.5 detik), lalu hening.",
     sfxMechanism: "Gemerisik lipatan kertas pop-up membuka lembut (1.5 detik), hening.",
     sfxResolution: "Ketukan kayu santai penutup (1 detik), senyap total.",
+  },
+
+  // 5b. Flamingo & Pigmen Makanan (Karotenoid)
+  {
+    match: (t) => t.includes("flamingo"),
+    coverProps: [
+      "Figur burung flamingo kertas origami megah yang berdiri dengan satu kaki",
+      "Bulu-bulu kertas origami gradasi abu-abu kusam yang mulai merekah",
+      "Kolam diorama kertas beriak biru muda",
+    ],
+    coverAction:
+      "Aksi kinetik detik ke-0: Di samping Obim berdiri burung flamingo kertas berbulu abu-abu kusam. Tiba-tiba saat Obim menyentuh air kertas, terjadi transformasi stop-motion magis: helai-helai bulu kertas flamingo melipat dan merekah cepat berubah menjadi warna pink neon cerah merona! Obim membelalak takjub dengan mata berbinar dan senyum kagum (mulut terkatup rapat, ekspresi murni dari gestur dan mata, NO speech, NO mouth moving).",
+    coverStance:
+      "Obim berdiri di samping burung flamingo kertas dengan gestur kagum, mata tersenyum membelalak ramah tanpa berbicara.",
+    mechanismProps: [
+      "Model molekul karotenoid dari lipatan kertas merah-oranye kecil",
+      "Diorama mikro alga dan udang renik kertas origami",
+      "Bulu sayap flamingo kertas yang menyerap serpihan pigmen pink",
+    ],
+    mechanismAction:
+      "Stop-motion memperlihatkan molekul pigmen karotenoid kertas lipat oranye-pink diserap ke dalam pori-pori lipatan bulu flamingo kertas, perlahan mengubah warna kertas putih-abu menjadi pink merona alami dari dalam. (Obim menunjuk diorama dengan antusias dalam diam, bibir terkatup, NO speech, NO dialogue).",
+    resolutionProps: [
+      "Wortel kertas lipat warna oranye cerah",
+      "Obim tersenyum di samping flamingo pink origami",
+    ],
+    resolutionAction:
+      "Obim memegang wortel kertas lipat oranye sambil tersenyum humoris membayangkan efeknya, lalu melambaikan tangan ramah ke kamera mengajak interaksi penonton (senyum manis dengan mulut tertutup, NO lip movement, NO speech).",
+    sfxHook: "Gemerisik kibasan sayap kertas 'whoosh' disusul dengung magis lembut (1.5 detik), lalu hening.",
+    sfxMechanism: "Denting halus penyerapan warna kertas (1 detik), fade out senyap.",
+    sfxResolution: "Ketukan kayu ramah penutup (1 detik), senyap total.",
   },
 
   // 6. Emas / Ledakan Bintang / Supernova
