@@ -314,43 +314,39 @@ if ($PasteOnly) {
 if ($PasteAndTagObim) {
   # Koordinat kolom input teks chat:
   $promptX = [int]($screenWidth * 0.860)
-  $promptY = [int]($screenHeight * 0.800)
+  $promptY = [int]($screenHeight * 0.850)
 
   # Klik langsung ke kolom input chat untuk memfokuskan kursor ketik
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($promptX, $promptY)
-  Start-Sleep -Milliseconds 300
+  Start-Sleep -Milliseconds 250
   [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
   Start-Sleep -Milliseconds 80
   [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 350
+  Start-Sleep -Milliseconds 300
 
   # Bersihkan teks lama jika ada
   $ws.SendKeys('^a')
-  Start-Sleep -Milliseconds 200
+  Start-Sleep -Milliseconds 150
 
   # Tempelkan teks prompt dari clipboard (Ctrl+V)
   $ws.SendKeys('^v')
-  Start-Sleep -Milliseconds 700
-
-  # Pastikan kursor berada di paling akhir teks prompt
-  $ws.SendKeys('^{END}')
-  Start-Sleep -Milliseconds 300
+  Start-Sleep -Milliseconds 400
 
   # Tambahkan spasi di akhir
   $ws.SendKeys(' ')
-  Start-Sleep -Milliseconds 250
+  Start-Sleep -Milliseconds 150
 
   # Ketikkan '@' untuk memicu popup mention aset di Google Flow
   $ws.SendKeys('@')
-  Start-Sleep -Milliseconds 800
+  Start-Sleep -Milliseconds 600
 
   # Ketikkan nama file 'obim.jpg'
   $ws.SendKeys('obim.jpg')
-  Start-Sleep -Milliseconds 600
+  Start-Sleep -Milliseconds 500
 
   # Tekan Enter untuk mengonfirmasi pilihan chip mention @obim.jpg
   $ws.SendKeys('{ENTER}')
-  Start-Sleep -Milliseconds 500
+  Start-Sleep -Milliseconds 300
 
   # BERHENTI DI SINI — TIDAK MENGIRIM ENTER LAGI / TIDAK KLIK PANAH!
   Write-Host "SUCCESS: Pasted prompt and tagged @obim.jpg chip WITHOUT submitting on ${screenWidth}x${screenHeight}"
@@ -360,60 +356,53 @@ if ($PasteAndTagObim) {
 if ($PasteTagAndSubmit) {
   # Koordinat kolom input teks chat:
   $promptX = [int]($screenWidth * 0.860)
-  $promptY = [int]($screenHeight * 0.800)
+  $promptY = [int]($screenHeight * 0.850)
 
   # Klik langsung ke kolom input chat untuk memfokuskan kursor ketik
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($promptX, $promptY)
-  Start-Sleep -Milliseconds 300
+  Start-Sleep -Milliseconds 250
   [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
   Start-Sleep -Milliseconds 80
   [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 350
+  Start-Sleep -Milliseconds 300
 
   # Bersihkan teks lama jika ada
   $ws.SendKeys('^a')
-  Start-Sleep -Milliseconds 200
+  Start-Sleep -Milliseconds 150
 
   # Tempelkan teks prompt dari clipboard (Ctrl+V)
   $ws.SendKeys('^v')
-  Start-Sleep -Milliseconds 700
-
-  # Pastikan kursor berada di paling akhir teks prompt
-  $ws.SendKeys('^{END}')
-  Start-Sleep -Milliseconds 300
+  Start-Sleep -Milliseconds 400
 
   # Tambahkan spasi di akhir
   $ws.SendKeys(' ')
-  Start-Sleep -Milliseconds 250
+  Start-Sleep -Milliseconds 150
 
   # Ketikkan '@' untuk memicu popup mention aset di Google Flow
   $ws.SendKeys('@')
-  Start-Sleep -Milliseconds 800
+  Start-Sleep -Milliseconds 600
 
   # Ketikkan nama file 'obim.jpg'
   $ws.SendKeys('obim.jpg')
-  Start-Sleep -Milliseconds 600
+  Start-Sleep -Milliseconds 500
 
   # Tekan Enter untuk mengonfirmasi pilihan chip mention @obim.jpg
   $ws.SendKeys('{ENTER}')
-  Start-Sleep -Milliseconds 500
+  Start-Sleep -Milliseconds 400
 
-  # Klik tombol panah kirim (Submit Arrow ->) di pojok kanan bawah kolom chat
-  # Posisi fisik terukur: X = 94.4%, Y = 88.8%
-  $btnX = [int]($screenWidth * 0.944)
-  $btnY = [int]($screenHeight * 0.888)
+  # Tekan Enter untuk men-submit prompt ke Google Flow
+  $ws.SendKeys('{ENTER}')
+  Start-Sleep -Milliseconds 300
 
-  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
-  Start-Sleep -Milliseconds 200
+  # Klik tombol panah kirim (Submit Arrow ->) di ujung kanan kolom chat
+  $btnX = [int]($screenWidth * 0.970)
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $promptY)
+  Start-Sleep -Milliseconds 150
   [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
   Start-Sleep -Milliseconds 80
   [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 300
 
-  # Cadangan tombol submit via keyboard Enter
-  $ws.SendKeys('{ENTER}')
-
-  Write-Host "SUCCESS: Pasted prompt, tagged @obim.jpg chip, and submitted prompt at ($btnX, $btnY) on ${screenWidth}x${screenHeight}"
+  Write-Host "SUCCESS: Pasted prompt, tagged @obim.jpg chip, and submitted prompt at ($btnX, $promptY) on ${screenWidth}x${screenHeight}"
   exit 0
 }
 
