@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TelegramClient } from "@/features/telegram/telegram-client";
 import { TelegramService } from "@/features/telegram/telegram-service";
+import { formatTelegramHtml } from "@/features/telegram/telegram-formatter";
+import { getStudioStoreSnapshot } from "@/features/telegram/studio-store-manager";
 
 describe("Telegram Bot & Security Whitelist Integration", () => {
   beforeEach(() => {
@@ -20,12 +22,12 @@ describe("Telegram Bot & Security Whitelist Integration", () => {
     expect(service.isAuthorized("")).toBe(false);
   });
 
-interface ServiceWithMockClient {
-  client: {
-    sendMessage: ReturnType<typeof vi.fn>;
-    answerCallbackQuery: ReturnType<typeof vi.fn>;
-  };
-}
+  interface ServiceWithMockClient {
+    client: {
+      sendMessage: ReturnType<typeof vi.fn>;
+      answerCallbackQuery: ReturnType<typeof vi.fn>;
+    };
+  }
 
   it("rejects unauthorized message updates with an explicit unauthorized response", async () => {
     const service = new TelegramService();
@@ -91,7 +93,8 @@ interface ServiceWithMockClient {
     expect(answerMock).toHaveBeenCalledWith("cb_123", expect.stringContaining("disetujui"));
     expect(sendMock).toHaveBeenCalledWith(
       1295640663,
-      expect.stringContaining("Siap Tayang")
+      expect.stringContaining("Siap Tayang"),
+      expect.anything()
     );
   });
 
@@ -99,7 +102,50 @@ interface ServiceWithMockClient {
     const client = new TelegramClient("test_token:123456");
     expect(client.isConfigured()).toBe(true);
 
-    const emptyClient = new TelegramClient("");
-    expect(emptyClient.isConfigured()).toBe(false);
+    const empty = new TelegramClient("");
+    expect(empty.isConfigured()).toBe(false);
+  });
+
+  it("converts raw markdown headers, bold asterisks, and bullets to clean Telegram HTML without raw symbols", () => {
+    const rawMarkdown =
+      "### Analisis Stok Kita:\n" +
+      "* Siap Tayang: **19 Konten**\n" +
+      "* Sedang Diproses: **11 Konten**\n\n" +
+      "### Rekomendasi Jadwal Upload:\n" +
+      "1. **Opsi Konsisten (1 Konten/Hari)** - *Sangat Disarankan*\n" +
+      "**Waktu Terbaik:** Jam 18.00 - 20.00 WIB\n" +
+      "[ACTION:REVIEW:CO-2026-011]";
+
+    const html = formatTelegramHtml(rawMarkdown);
+
+    // Pastikan tidak ada raw ### atau ####
+    expect(html).not.toContain("###");
+    expect(html).toContain("<b>Analisis Stok Kita:</b>");
+    expect(html).toContain("<b>Rekomendasi Jadwal Upload:</b>");
+
+    // Pastikan tidak ada ** bold
+    expect(html).not.toContain("**");
+    expect(html).toContain("<b>19 Konten</b>");
+
+    // Pastikan bullet diubah jadi •
+    expect(html).toContain("• Siap Tayang");
+
+    // Pastikan tag aksi tersembunyi dibersihkan
+    expect(html).not.toContain("[ACTION:REVIEW:CO-2026-011]");
+  });
+
+  it("builds a real-time store snapshot with accurate inventory and next video to upload", async () => {
+    const snapshot = await getStudioStoreSnapshot();
+
+    expect(snapshot.nowWibText).toContain("WIB");
+    expect(snapshot.inventory.total).toBeGreaterThan(0);
+    expect(snapshot.settings.dailyVideoTarget).toBeGreaterThanOrEqual(1);
+
+    // Etalase dan inventori harus valid
+    expect(snapshot.readyItems.length + snapshot.publishedItems.length).toBeGreaterThan(0);
+    if (snapshot.nextVideoToUpload) {
+      expect(snapshot.nextVideoToUpload.code).toMatch(/^CO-\d{4}-\d{3}$/);
+      expect(snapshot.nextVideoToUpload.title.length).toBeGreaterThan(0);
+    }
   });
 });

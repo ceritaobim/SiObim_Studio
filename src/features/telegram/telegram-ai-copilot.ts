@@ -1,26 +1,37 @@
 /**
- * CeritaObim Studio — Telegram AI Copilot (Powered by Google Gemini)
+ * CeritaObim Studio — Telegram AI Copilot (Kepala Toko Intelligence)
  *
- * Mengubah bot Telegram menjadi Asisten Pribadi Cerdas (Obim Copilot)
- * yang memahami seluruh konten CeritaObim, gaya origami stop-motion,
- * dan dapat berinteraksi secara fleksibel dalam bahasa Indonesia kasual.
+ * Mengubah bot Telegram menjadi Kepala Toko Cerdas (Obim Store Manager)
+ * yang melayani sang CEO (Kreator) dengan pemahaman 100% akurat atas
+ * data inventori video real-time, status publikasi, dan kontrol sistem.
  */
 
-import type { ContentItemRecord } from "@/types/domain";
+import { type StoreSnapshot } from "./studio-store-manager";
+import { formatTelegramHtml } from "./telegram-formatter";
+
+export interface StoreAction {
+  type:
+    | "PUBLISH_NOW"
+    | "SCHEDULE_VIDEO"
+    | "UPDATE_SETTINGS"
+    | "AUTO_SCHEDULE"
+    | "REVIEW"
+    | "APPROVE";
+  contentCode?: string;
+  time?: string;
+  dailyTarget?: number;
+  uploadHour?: string;
+}
 
 export interface CopilotChatInput {
   userMessage: string;
   senderName?: string;
-  contentItems: ContentItemRecord[];
-  completedCodes: string[];
+  snapshot: StoreSnapshot;
 }
 
 export interface CopilotChatResponse {
   replyText: string;
-  action?: {
-    type: "REVIEW" | "APPROVE" | "LIST_STATUS";
-    contentCode?: string;
-  };
+  actions: StoreAction[];
 }
 
 export async function askGeminiCopilot(
@@ -36,7 +47,8 @@ export async function askGeminiCopilot(
   if (!apiKey) {
     return {
       replyText:
-        "⚠️ API Key Google AI (Gemini) belum diset di server (.env.local). Silakan tambahkan GEMINI_API_KEY untuk mengaktifkan fitur chat cerdas.",
+        "⚠️ <b>API Key Google AI (Gemini) belum diset.</b>\nSilakan tambahkan <code>GEMINI_API_KEY</code> di pengaturan server untuk mengaktifkan kecerdasan Kepala Toko.",
+      actions: [],
     };
   }
 
@@ -51,39 +63,90 @@ export async function askGeminiCopilot(
     model
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-  // Buat ringkasan ringkas konten studio untuk konteks AI
-  const catalogSummary = input.contentItems
-    .slice(0, 30)
-    .map((item) => {
-      const isDone = input.completedCodes.includes(item.contentCode.toUpperCase());
-      return `- [${item.contentCode}] "${item.title}" (${item.category}) -> ${
-        isDone ? "✅ FINAL SIAP TAYANG" : "⏳ PROSES/PENDING"
-      }`;
-    })
+  const snap = input.snapshot;
+
+  // Format inventori published & ready secara ringkas namun presisi
+  const publishedSummary = snap.publishedItems
+    .map((item) => `• [${item.code}] "${item.title}"`)
     .join("\n");
 
-  const systemPrompt = `Kamu adalah Obim, asisten cerdas dan partner kreatif resmi untuk channel CeritaObim Studio.
-Kamu berbicara langsung dengan sang kreator (Mas ${input.senderName || "B3"}).
+  const readySummary = snap.readyItems
+    .map(
+      (item) =>
+        `• [${item.code}] "${item.title}" -> Jadwal: ${item.scheduleInfo.formatted}`
+    )
+    .join("\n");
 
-IDENTITAS & ATURAN CHANNEL CERITAOBIM:
-- Format Video: Vertikal 9:16 (1080x1920), durasi target 65-80 detik (monetization-friendly).
-- Visual Identity: Handmade origami paper stop-motion murni. Semua karakter, properti, dan background tampak terbuat dari lipatan kertas doff. Obim adalah figur anak muda kertas origami berkemeja flanel merah kotak-kotak dan celana biru dongker.
-- Tanpa subtitle/teks di dalam klip video generated (teks hanya untuk banner thumbnail cover di Bagian 1).
-- 3 Segmen Resmi:
-  1. Ke Dapur Yuk! (Sains makanan & kuliner)
-  2. Kepikiran Aja (Psikologi & pertanyaan sebelum tidur)
-  3. Eh, Ternyata! (Fakta unik sains & mitos)
+  const inProductionSummary = snap.inProductionItems
+    .slice(0, 10)
+    .map((item) => `• [${item.code}] "${item.title}"`)
+    .join("\n");
 
-DATA REAL-TIME KONTEN STUDIO SAAT INI:
-${catalogSummary}
+  const systemPrompt = `Kamu adalah Obim, KEPALA TOKO (Executive Store Manager) resmi untuk channel CeritaObim Studio.
+Kamu melayani langsung sang CEO / Pemilik Studio (Mas ${input.senderName || "B3"}).
 
-TUGAS & KEMAMPUAN KAMU:
-1. Berbicara dengan gaya ramah, santai, cerdas, solutif, dan efisien khas Obim (bahasa Indonesia sehari-hari, tidak kaku).
-2. SANGAT PENTING: DILARANG menyebutkan kode ID teknis seperti "CO-2026-001" atau kode nomor kepada kreator dalam teks jawabanmu. Sebutkan langsung JUDUL KONTEN-nya saja (contoh: "Video Rahasia Nasi Goreng sudah siap tayang!").
-3. Format balasan HARUS MINIMALIS, RINGKAS, dan ON-POINT (maksimal 2-4 kalimat atau bullet point padat). Jangan bertele-tele atau mengulang penjelasan panjang.
-4. Jika kreator meminta untuk mereview, melihat, atau mengecek video tertentu (misal: "kirim video nasi goreng" atau "cek video mandi"), cantumkan tag aksi tersembunyi di paling akhir pesanmu: [ACTION:REVIEW:KODE_KONTEN] (contoh: [ACTION:REVIEW:CO-2026-001]). Sistem akan otomatis mengekstrak tag ini untuk mengirimkan video MP4 ke Telegram tanpa menampilkan tag ke pengguna.
-5. Jika kreator menyetujui konten (misal: "nasi goreng siap tayang ya"), cantumkan tag: [ACTION:APPROVE:KODE_KONTEN].
-6. Jika kreator meminta bantuan copywriting, buatkan variasi caption TikTok/Reels/Shorts dengan hashtag yang relevan secara padat.`;
+PERAN & KARAKTER:
+- Kamu bukan sekadar chatbot biasa, kamu adalah "Kepala Toko" yang bertanggung jawab penuh atas operasional konten, etalase video, jadwal tayang, dan publikasi ke medsos.
+- Gaya bicaramu: Sigap, cerdas, taktis, sopan, efisien, solutif, dan berorientasi eksekusi.
+- Bahasa: Bahasa Indonesia percakapan yang lugas, tidak kaku, dan profesional.
+
+ATURAN FORMAT WAJIB (AGAR TAMPILAN DI TELEGRAM CANTIK & RAPI):
+1. DILARANG KERAS menggunakan simbol Markdown Header (seperti #, ##, ###, ####).
+2. DILARANG KERAS menggunakan simbol bintang tebal (**teks**). Gunakan tag HTML <b>teks</b> untuk menebalkan kata atau judul!
+3. Gunakan simbol bullet (•) untuk daftar poin, bukan tanda bintang (*).
+4. Gunakan tag <code>KODE</code> jika menyebut kode konten (contoh: <code>CO-2026-011</code>).
+5. Tuliskan jawaban secara padat, to-the-point, dan langsung pada intinya (maksimal 2–4 paragraf pendek).
+
+WAKTU SERVER REAL-TIME SAAT INI:
+${snap.nowWibText}
+
+SETELAN OPERASIONAL STUDIO:
+• Target Upload: ${snap.settings.dailyVideoTarget} Video / Hari (${snap.settings.weeklyVideoTarget} Video / Minggu)
+• Jam Upload Default: ${snap.settings.defaultUploadHour}
+• Platform Aktif: ${snap.settings.targetPlatforms.join(", ")} via Buffer
+
+INVENTORI ETALASE REAL-TIME:
+1. SUDAH TAYANG DI MEDSOS (${snap.inventory.publishedCount} Video - SUDAH LIVE, JANGAN DIANGGAP BELUM UPLOAD):
+${publishedSummary}
+
+2. SIAP TAYANG DI ETALASE (${snap.inventory.readyCount} Video - SUDAH FINAL DIRAKIT, MENUNGGU JADWAL/UPLOAD):
+${readySummary}
+
+3. SEDANG DIRAKIT DI DAPUR (${snap.inventory.inProductionCount} Video - PROSES PRODUKSI/PENDING KLIP):
+${inProductionSummary}
+${snap.inventory.inProductionCount > 10 ? `... dan ${snap.inventory.inProductionCount - 10} konten dapur lainnya.` : ""}
+
+PRIORITAS OPERASIONAL SAAT INI:
+• KONTEN BERIKUTNYA YANG HARUS DIUPLOAD: ${
+    snap.nextVideoToUpload
+      ? `[${snap.nextVideoToUpload.code}] "${snap.nextVideoToUpload.title}" (${snap.nextVideoToUpload.category})`
+      : "Semua stok siap tayang sudah di-upload!"
+  }
+• JADWAL TAYANG TERDEKAT: ${
+    snap.nearestScheduledVideo
+      ? `${snap.nearestScheduledVideo.code} pada ${snap.nearestScheduledVideo.scheduleInfo.formatted}`
+      : "Belum diset"
+  }
+
+KEMAMPUAN EKSEKUSI (STORE MANAGER ACTION PROTOCOL):
+Jika CEO memberikan instruksi kerja, cantumkan SATU atau LEBIH tag aksi berikut di akhir pesanmu (sistem akan otomatis mengeksekusinya tanpa memperlihatkan tag kepada user):
+1. Minta publish sekarang / upload sekarang:
+   [ACTION:PUBLISH_NOW:{"contentCode":"KODE"}]
+2. Minta jadwalkan video tertentu pada jam/tanggal tertentu:
+   [ACTION:SCHEDULE_VIDEO:{"contentCode":"KODE","time":"YYYY-MM-DDTHH:mm:00+07:00"}]
+3. Minta ubah target upload harian atau jam upload default (contoh: "jadikan 2 video per hari", "ubah jam upload jadi jam 20:00"):
+   [ACTION:UPDATE_SETTINGS:{"dailyTarget":JUMLAH,"uploadHour":"HH:mm"}]
+4. Minta jadwalkan otomatis seluruh antrean video yang ada:
+   [ACTION:AUTO_SCHEDULE:{"dailyCount":JUMLAH,"uploadHour":"HH:mm"}]
+5. Minta review / tonton video:
+   [ACTION:REVIEW:{"contentCode":"KODE"}]
+6. Minta setujui / approve video:
+   [ACTION:APPROVE:{"contentCode":"KODE"}]
+
+PANDUAN MENJAWAB PERTANYAAN KHUSUS:
+- Jika ditanya "konten apa selanjutnya yang diupload?", jawab DENGAN PASTI: [${snap.nextVideoToUpload?.code || "CO-2026-011"}] "${snap.nextVideoToUpload?.title || "Kenapa Kita Menguap Pas Liat Orang Menguap?"}". Jelaskan bahwa video 001 s/d 010 sudah tayang!
+- Jika ditanya "kapan jadwal upload terdekat?", sebutkan jadwal untuk video berikutnya berdasarkan data di atas.
+- Jika ditanya "upload berapa konten per hari?", jelaskan setelan saat ini (${snap.settings.dailyVideoTarget} video/hari) dan beritahu CEO bahwa beliau bisa langsung mengubahnya cukup dengan bilang ke Obim!`;
 
   try {
     const payload = {
@@ -97,7 +160,7 @@ TUGAS & KEMAMPUAN KAMU:
         },
       ],
       generationConfig: {
-        temperature: 0.7,
+        temperature: 0.5,
         maxOutputTokens: 1024,
       },
     };
@@ -113,46 +176,55 @@ TUGAS & KEMAMPUAN KAMU:
       console.error("Gemini API Error:", response.status, errText);
       return {
         replyText:
-          "Maaf Mas, koneksi ke Google Gemini AI sedang mengalami kendala sementara. Anda tetap bisa menggunakan perintah cepat seperti /status atau /review.",
+          "⚠️ <i>Koneksi ke otak AI sedang sibuk sementara, Mas. Namun Anda tetap bisa memberi perintah langsung seperti /status, /review, atau ubah jadwal.</i>",
+        actions: [],
       };
     }
 
     const data = await response.json();
     const candidateText =
       data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Maaf Mas, Obim belum bisa memahami pesan tersebut.";
+      "Siap Mas, ada yang bisa Obim bantu atur di studio?";
 
-    // Deteksi action tags seperti [ACTION:REVIEW:CO-2026-001]
-    let cleanReply = candidateText;
-    let actionResult: CopilotChatResponse["action"] = undefined;
+    // Ekstrak semua tag aksi seperti [ACTION:TYPE:{...}] atau [ACTION:TYPE:CODE]
+    const actions: StoreAction[] = [];
+    const actionRegex = /\[ACTION:([A-Z_]+)(?::(.*?)\]|\])/gi;
+    let match: RegExpExecArray | null;
 
-    const reviewMatch = candidateText.match(/\[ACTION:REVIEW:([A-Z0-9-]+)\]/i);
-    if (reviewMatch) {
-      actionResult = {
-        type: "REVIEW",
-        contentCode: reviewMatch[1].toUpperCase(),
-      };
-      cleanReply = cleanReply.replace(reviewMatch[0], "").trim();
+    while ((match = actionRegex.exec(candidateText)) !== null) {
+      if (!match || !match[1]) continue;
+      const type = match[1].toUpperCase() as StoreAction["type"];
+      const rawParam = (match[2] || "").trim();
+
+      let actionObj: StoreAction = { type };
+
+      if (rawParam.startsWith("{") && rawParam.endsWith("}")) {
+        try {
+          const parsed = JSON.parse(rawParam);
+          actionObj = { ...actionObj, ...parsed };
+        } catch {
+          // ignore json parse error
+        }
+      } else if (rawParam) {
+        actionObj.contentCode = rawParam.toUpperCase();
+      }
+
+      actions.push(actionObj);
     }
 
-    const approveMatch = candidateText.match(/\[ACTION:APPROVE:([A-Z0-9-]+)\]/i);
-    if (approveMatch) {
-      actionResult = {
-        type: "APPROVE",
-        contentCode: approveMatch[1].toUpperCase(),
-      };
-      cleanReply = cleanReply.replace(approveMatch[0], "").trim();
-    }
+    // Bersihkan tag action dan format rapi ke Telegram HTML
+    const cleanReply = formatTelegramHtml(candidateText);
 
     return {
       replyText: cleanReply,
-      action: actionResult,
+      actions,
     };
-  } catch (err) {
-    console.error("Gemini Copilot Error:", err);
+  } catch (err: unknown) {
+    console.error("Copilot unexpected error:", err);
     return {
       replyText:
-        "Waduh, terjadi error saat memproses percakapan dengan Google AI. Coba tanyakan lagi ya Mas!",
+        "⚠️ <i>Terjadi kendala saat memproses jawaban. Silakan coba lagi sebentar lagi.</i>",
+      actions: [],
     };
   }
 }

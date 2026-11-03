@@ -1,19 +1,26 @@
 /**
  * CeritaObim Studio — Telegram Bot Service & Orchestrator
  *
- * Menghubungkan Telegram Client, Database Konten Studio, Google Drive,
- * dan Google Gemini AI Copilot dalam satu alur yang aman dan responsif.
+ * Menghubungkan Telegram Client, Database Konten Studio, Google Gemini AI Copilot,
+ * Buffer Publisher, dan Pengaturan Sistem dalam peran "Kepala Toko" (Store Manager)
+ * yang sigap, akurat, dan melayani sang CEO secara penuh 24/7.
  */
 
 import { TelegramClient, type TelegramInlineButton } from "./telegram-client";
 import { askGeminiCopilot } from "./telegram-ai-copilot";
+import {
+  getStudioStoreSnapshot,
+  executePublishNow,
+  executeSetSchedule,
+  executeUpdateSettings,
+  executeAutoScheduleQueue,
+} from "./studio-store-manager";
 import {
   listContentItems,
   listAssetsForContent,
   updateContentItem,
 } from "@/lib/db/repository";
 import { DEFAULT_OWNER_ID } from "@/lib/config/env";
-import type { ContentItemRecord } from "@/types/domain";
 
 export interface TelegramUser {
   id: number | string;
@@ -83,7 +90,7 @@ export class TelegramService {
 
     const chatId = message.chat.id;
     const senderId = String(message.from?.id || "");
-    const senderName = message.from?.first_name || "Creator";
+    const senderName = message.from?.first_name || "CEO";
     const text = message.text.trim();
 
     // Validasi Keamanan: Whitelist User ID
@@ -96,7 +103,7 @@ export class TelegramService {
       return { ok: true, unauthorized: true };
     }
 
-    // Perintah: /start atau /help
+    // Perintah: /start atau /help atau "menu"
     if (text === "/start" || text === "/help" || text.toLowerCase() === "menu") {
       return this.sendWelcomeMessage(chatId, senderName);
     }
@@ -114,13 +121,36 @@ export class TelegramService {
     ) {
       const code = text.replace(/^(\/review|review:?)/i, "").trim().split(/\s+/)[0]?.toUpperCase() || "";
       if (!code) {
+        const snap = await getStudioStoreSnapshot();
+        const nextCode = snap.nextVideoToUpload?.code || "CO-2026-011";
         await this.client.sendMessage(
           chatId,
-          "ℹ️ Format perintah: <code>/review CO-2026-002</code>\nAtau Anda bisa ketik santai: <i>'Kirim video tentang nasi goreng'</i>"
+          `ℹ️ <i>Format perintah:</i> <code>/review ${nextCode}</code>\nAtau Anda cukup ketik santai: <i>'Obim, kirim video selanjutnya'</i>`
         );
         return { ok: true };
       }
       return this.sendVideoReview(chatId, code);
+    }
+
+    // Perintah Publish: /publish [KODE] atau publish:KODE
+    if (
+      text.startsWith("/publish") ||
+      text.toLowerCase().startsWith("publish ") ||
+      text.toLowerCase().startsWith("publish:")
+    ) {
+      const code = text.replace(/^(\/publish|publish:?)/i, "").trim().split(/\s+/)[0]?.toUpperCase() || "";
+      const snap = await getStudioStoreSnapshot();
+      const targetCode = code || snap.nextVideoToUpload?.code;
+
+      if (!targetCode) {
+        await this.client.sendMessage(chatId, "⚠️ Tidak ada video yang siap di-publish di etalase.");
+        return { ok: true };
+      }
+
+      await this.client.sendMessage(chatId, `⏳ <i>Kepala Toko sedang mengunggah video <b>${targetCode}</b> ke Buffer...</i>`);
+      const res = await executePublishNow(targetCode);
+      await this.client.sendMessage(chatId, res.message);
+      return { ok: true };
     }
 
     // Perintah Approve: /approve [KODE] atau approve:KODE
@@ -133,114 +163,192 @@ export class TelegramService {
       if (!code) {
         await this.client.sendMessage(
           chatId,
-          "ℹ️ Format perintah: <code>/approve CO-2026-002</code>"
+          "ℹ️ <i>Format perintah:</i> <code>/approve CO-2026-011</code>"
         );
         return { ok: true };
       }
       return this.approveContent(chatId, code);
     }
 
-    // Obrolan Fleksibel Bebas (Google Gemini AI Copilot)
+    // Obrolan Bebas & Perintah Fleksibel (Google Gemini AI Kepala Toko Copilot)
     await this.client.sendChatAction(chatId, "typing");
 
-    const allItems = await listContentItems(DEFAULT_OWNER_ID).catch(() => []);
-    const completedCodes = await this.getCompletedContentCodes(allItems);
+    const snapshot = await getStudioStoreSnapshot();
 
     const aiRes = await askGeminiCopilot({
       userMessage: text,
       senderName,
-      contentItems: allItems,
-      completedCodes,
+      snapshot,
     });
 
-    // Kirim jawaban teks dari Gemini
+    // 1. Bangun tombol aksi dinamis yang relevan di bawah balasan
+    const inlineButtons: TelegramInlineButton[][] = [];
+    const nextItem = snapshot.nextVideoToUpload;
+
+    if (nextItem) {
+      inlineButtons.push([
+        {
+          text: `⚡ Publish Sekarang (${nextItem.code})`,
+          callback_data: `publish:${nextItem.code}`,
+        },
+        {
+          text: `🎬 Tonton Video`,
+          callback_data: `review:${nextItem.code}`,
+        },
+      ]);
+    }
+
+    inlineButtons.push([
+      { text: "📊 Cek Etalase", callback_data: "menu:status" },
+      { text: "🎯 Target: 1x Sehari", callback_data: "settings:target:1" },
+      { text: "🎯 2x Sehari", callback_data: "settings:target:2" },
+    ]);
+
+    // 2. Kirim balasan AI berformat HTML bersih
     await this.client.sendMessage(chatId, aiRes.replyText, {
       parse_mode: "HTML",
+      reply_markup: { inline_keyboard: inlineButtons },
     });
 
-    // Jalankan action jika AI mendeteksi permintaan review atau approval
-    if (aiRes.action?.type === "REVIEW" && aiRes.action.contentCode) {
-      await this.sendVideoReview(chatId, aiRes.action.contentCode);
-    } else if (aiRes.action?.type === "APPROVE" && aiRes.action.contentCode) {
-      await this.approveContent(chatId, aiRes.action.contentCode);
+    // 3. Eksekusi semua instruksi aksi yang dikeluarkan oleh Kepala Toko AI
+    for (const action of aiRes.actions) {
+      try {
+        if (action.type === "PUBLISH_NOW" && action.contentCode) {
+          await this.client.sendMessage(
+            chatId,
+            `⏳ <i>Instruksi diterima: Kepala Toko sedang mengeksekusi publikasi <b>${action.contentCode}</b> ke Buffer...</i>`
+          );
+          const res = await executePublishNow(action.contentCode);
+          await this.client.sendMessage(chatId, res.message);
+        } else if (action.type === "SCHEDULE_VIDEO" && action.contentCode && action.time) {
+          const res = await executeSetSchedule(action.contentCode, action.time);
+          await this.client.sendMessage(chatId, res.message);
+        } else if (action.type === "UPDATE_SETTINGS") {
+          const res = await executeUpdateSettings({
+            dailyTarget: action.dailyTarget,
+            uploadHour: action.uploadHour,
+          });
+          await this.client.sendMessage(chatId, res.message);
+        } else if (action.type === "AUTO_SCHEDULE") {
+          const res = await executeAutoScheduleQueue({
+            dailyCount: action.dailyTarget,
+            uploadHour: action.uploadHour,
+          });
+          await this.client.sendMessage(chatId, res.message);
+        } else if (action.type === "REVIEW" && action.contentCode) {
+          await this.sendVideoReview(chatId, action.contentCode);
+        } else if (action.type === "APPROVE" && action.contentCode) {
+          await this.approveContent(chatId, action.contentCode);
+        }
+      } catch (actErr: unknown) {
+        console.error("Gagal mengeksekusi aksi dari AI:", actErr);
+      }
     }
 
     return { ok: true };
   }
 
   private async sendWelcomeMessage(chatId: number | string, senderName: string) {
-    const welcomeHtml = `Halo <b>${senderName}</b>! 👋\n` +
-      `Selamat datang di <b>CeritaObim Studio Copilot</b>.\n\n` +
-      `Saya asisten pribadi Anda untuk mengontrol produksi video saat Anda berada di luar:\n` +
-      `• 📊 <b>Cek Status</b>: Pantau video yang siap tayang & masih pending.\n` +
-      `• 🎬 <b>Review Video</b>: Tonton video 00Final.mp4 langsung di Telegram.\n` +
-      `• 🚀 <b>Setujui & Jadwalkan</b>: Tandai video siap tayang sekali klik.\n` +
-      `• 💬 <b>Chat Bebas</b>: Ngobrol santai pakai Google AI (tanya ide, minta caption, dll).\n\n` +
-      `<i>Ketik pertanyaan apa saja atau gunakan tombol cepat di bawah:</i>`;
+    const snap = await getStudioStoreSnapshot();
+
+    const welcomeHtml =
+      `Halo <b>Mas ${senderName}</b>! 👋\n` +
+      `Saya <b>Obim</b>, Kepala Toko & Asisten Eksekutif <b>CeritaObim Studio Copilot</b>.\n\n` +
+      `Saya siap mengelola seluruh operasional studio saat Anda di luar:\n` +
+      `• 📊 <b>Pantau Etalase:</b> ${snap.inventory.publishedCount} Tayang | ${snap.inventory.readyCount} Siap Tayang | ${snap.inventory.inProductionCount} Dapur\n` +
+      `• ⚡ <b>Video Terdepan:</b> ${snap.nextVideoToUpload ? `<code>${snap.nextVideoToUpload.code}</code> "${snap.nextVideoToUpload.title}"` : "-"}\n` +
+      `• 🎯 <b>Setelan:</b> ${snap.settings.dailyVideoTarget} Video/Hari • Jam ${snap.settings.defaultUploadHour}\n\n` +
+      `<i>Anda adalah CEO-nya, cukup perintahkan apa saja via chat santai (misal: "publish video selanjutnya sekarang", "ubah jadwal jam 20:00", atau "target 2 video sehari"):</i>`;
 
     const keyboard = {
       keyboard: [
         [{ text: "📊 Cek Status" }, { text: "🎬 Video Siap Review" }],
+        [{ text: "⚡ Publish Konten Selanjutnya Sekarang" }],
         [{ text: "💡 Rekomendasi Ide Konten" }],
       ],
       resize_keyboard: true,
     };
 
+    const inlineKeyboard: TelegramInlineButton[][] = [];
+    if (snap.nextVideoToUpload) {
+      inlineKeyboard.push([
+        {
+          text: `⚡ Publish Sekarang (${snap.nextVideoToUpload.code})`,
+          callback_data: `publish:${snap.nextVideoToUpload.code}`,
+        },
+        {
+          text: `🎬 Tonton Video`,
+          callback_data: `review:${snap.nextVideoToUpload.code}`,
+        },
+      ]);
+    }
+
     return this.client.sendMessage(chatId, welcomeHtml, {
       parse_mode: "HTML",
-      reply_markup: keyboard,
+      reply_markup: {
+        keyboard: keyboard.keyboard,
+        resize_keyboard: true,
+      },
     });
   }
 
   private async sendStatusOverview(chatId: number | string) {
     await this.client.sendChatAction(chatId, "typing");
-    const items = await listContentItems(DEFAULT_OWNER_ID).catch(() => []);
-    if (items.length === 0) {
+    const snap = await getStudioStoreSnapshot();
+
+    if (snap.inventory.total === 0) {
       return this.client.sendMessage(chatId, "Belum ada konten yang tersimpan di studio.");
     }
 
-    const completedCodes = await this.getCompletedContentCodes(items);
+    let msg = `📊 <b>LAPORAN OPERASIONAL CERITAOBIM STUDIO</b>\n`;
+    msg += `<i>Update: ${snap.nowWibText}</i>\n\n`;
 
-    const completedItems = items.filter((i) =>
-      completedCodes.includes(i.contentCode.toUpperCase())
-    );
-    const pendingItems = items.filter(
-      (i) => !completedCodes.includes(i.contentCode.toUpperCase())
-    );
-
-    let msg = `📊 <b>Status Produksi CeritaObim</b>\n\n`;
-
-    if (completedItems.length > 0) {
-      msg += `✅ <b>Siap Tayang (${completedItems.length} Video):</b>\n`;
-      completedItems.slice(0, 6).forEach((item, idx) => {
-        msg += `${idx + 1}. ${item.title}\n`;
-      });
-      if (completedItems.length > 6) {
-        msg += `<i>+ ${completedItems.length - 6} video lainnya siap tayang</i>\n`;
-      }
-      msg += `\n`;
+    // 1. Etalase Siap Tayang (Antrean Upload)
+    msg += `⚡ <b>SIAP TAYANG DI ETALASE (${snap.inventory.readyCount} Video):</b>\n`;
+    if (snap.readyItems.length === 0) {
+      msg += `<i>Semua stok etalase sudah tayang! Silakan rakit konten baru di dapur.</i>\n`;
     } else {
-      msg += `<i>Belum ada video final yang selesai dirakit.</i>\n\n`;
+      snap.readyItems.slice(0, 6).forEach((item, idx) => {
+        msg += `${idx + 1}. <b>${item.code}</b>: "${item.title}"\n   👉 <i>Jadwal: ${item.scheduleInfo.formatted}</i>\n`;
+      });
+      if (snap.readyItems.length > 6) {
+        msg += `<i>... dan ${snap.readyItems.length - 6} video siap tayang lainnya.</i>\n`;
+      }
     }
 
-    if (pendingItems.length > 0) {
-      msg += `⏳ <b>Sedang Diproduksi (${pendingItems.length} Video):</b>\n`;
-      pendingItems.slice(0, 3).forEach((item) => {
-        msg += `• ${item.title}\n`;
-      });
-      if (pendingItems.length > 3) {
-        msg += `<i>+ ${pendingItems.length - 3} video dalam antrean</i>\n`;
-      }
-    } else {
-      msg += `🎉 <i>Seluruh konten telah selesai 100%!</i>\n`;
+    // 2. Sudah Tayang
+    msg += `\n🚀 <b>SUDAH TAYANG DI MEDSOS (${snap.inventory.publishedCount} Video):</b>\n`;
+    snap.publishedItems.slice(0, 5).forEach((item) => {
+      msg += `• [${item.code}] ${item.title} ✅\n`;
+    });
+    if (snap.publishedItems.length > 5) {
+      msg += `<i>... dan ${snap.publishedItems.length - 5} video live lainnya.</i>\n`;
     }
 
-    // Buat tombol inline review judul bersih (tanpa ID teknis)
-    const inlineButtons: TelegramInlineButton[][] = completedItems.slice(0, 4).map((item) => [
-      {
-        text: `🎬 Tonton: ${item.title.length > 28 ? item.title.slice(0, 28) + "..." : item.title}`,
-        callback_data: `review:${item.contentCode}`,
-      },
+    // 3. Dapur Produksi
+    msg += `\n⏳ <b>SEDANG DIRAKIT DI DAPUR (${snap.inventory.inProductionCount} Konten):</b>\n`;
+    msg += `• <i>Stok klip origami sedang diproduksi & menunggu final assembly.</i>\n\n`;
+    msg += `⚙️ <b>Setelan:</b> ${snap.settings.dailyVideoTarget} Video/Hari • Jam ${snap.settings.defaultUploadHour}`;
+
+    const inlineButtons: TelegramInlineButton[][] = [];
+
+    if (snap.nextVideoToUpload) {
+      inlineButtons.push([
+        {
+          text: `⚡ Publish Sekarang (${snap.nextVideoToUpload.code})`,
+          callback_data: `publish:${snap.nextVideoToUpload.code}`,
+        },
+        {
+          text: `🎬 Review Video`,
+          callback_data: `review:${snap.nextVideoToUpload.code}`,
+        },
+      ]);
+    }
+
+    inlineButtons.push([
+      { text: "🎯 Set 1x Sehari", callback_data: "settings:target:1" },
+      { text: "🎯 Set 2x Sehari", callback_data: "settings:target:2" },
+      { text: "🗓️ Rapikan Jadwal Antrean", callback_data: "schedule:auto" },
     ]);
 
     return this.client.sendMessage(chatId, msg, {
@@ -260,7 +368,7 @@ export class TelegramService {
     if (!item) {
       return this.client.sendMessage(
         chatId,
-        `❌ Video yang diminta tidak ditemukan di database studio.`
+        `❌ Video dengan kode <code>${contentCode}</code> tidak ditemukan di database studio.`
       );
     }
 
@@ -278,12 +386,14 @@ export class TelegramService {
 
     const statusText =
       item.contentStatus === "published"
-        ? "Sudah Tayang 🚀"
+        ? "Sudah Tayang di Medsos 🚀"
         : item.contentStatus === "ready_to_publish"
-        ? "Siap Tayang ✅"
-        : "Menunggu Review ⏳";
+        ? "Siap Tayang di Etalase ✅"
+        : "Menunggu Perakitan / Review ⏳";
 
-    let caption = `🎬 <b>${safeTitle}</b>\n\n` +
+    let caption =
+      `🎬 <b>[${item.contentCode}] ${safeTitle}</b>\n\n` +
+      `🏷️ <b>Topik:</b> ${escapeHtml(item.category)} — ${escapeHtml(item.topic)}\n` +
       `📝 <b>Caption Medsos:</b>\n` +
       `<code>${safeCaptionBody}</code>\n\n` +
       `Status: <b>${statusText}</b>`;
@@ -293,10 +403,21 @@ export class TelegramService {
     }
 
     const inlineKeyboard: TelegramInlineButton[][] = [];
+
+    // Tombol Publish Sekarang jika video sudah siap
+    if (item.contentStatus !== "published") {
+      inlineKeyboard.push([
+        {
+          text: `⚡ Publish Sekarang (${item.contentCode})`,
+          callback_data: `publish:${item.contentCode}`,
+        },
+      ]);
+    }
+
     if (item.contentStatus !== "ready_to_publish" && item.contentStatus !== "published") {
       inlineKeyboard.push([
         {
-          text: "✅ Setujui & Siap Tayang",
+          text: "✅ Setujui & Masukkan Etalase",
           callback_data: `approve:${item.contentCode}`,
         },
       ]);
@@ -341,7 +462,7 @@ export class TelegramService {
       }
     }
 
-    // 2. Fallback: Kirimkan kartu review lengkap dengan link GDrive jika video belum bisa distreaming langsung
+    // 2. Fallback: Kirimkan kartu review lengkap
     return this.client.sendMessage(chatId, caption, {
       parse_mode: "HTML",
       reply_markup: { inline_keyboard: inlineKeyboard },
@@ -357,7 +478,7 @@ export class TelegramService {
     if (!item) {
       return this.client.sendMessage(
         chatId,
-        `❌ Konten tidak ditemukan.`
+        `❌ Konten <code>${contentCode}</code> tidak ditemukan.`
       );
     }
 
@@ -366,17 +487,25 @@ export class TelegramService {
       contentStatus: "ready_to_publish",
     });
 
-    // Otomatis picu Auto-Pilot Buffer queueing di latar belakang
-    try {
-      const { runAutopilotCycle } = await import(
-        "@/lib/services/autopilot-orchestrator"
-      );
-      runAutopilotCycle(DEFAULT_OWNER_ID).catch(() => {});
-    } catch {}
-
     return this.client.sendMessage(
       chatId,
-      `🎉 <b>Disetujui!</b>\n"${item.title}" kini berstatus <b>Siap Tayang</b> dan otomatis masuk ke antrean jadwal medsos!`
+      `🎉 <b>Disetujui Mas!</b>\nVideo <b>[${item.contentCode}] "${item.title}"</b> kini berstatus <b>Siap Tayang</b> dan masuk ke etalase antrean medsos!`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: `⚡ Publish Sekarang (${item.contentCode})`,
+                callback_data: `publish:${item.contentCode}`,
+              },
+              {
+                text: "📊 Cek Etalase",
+                callback_data: "menu:status",
+              },
+            ],
+          ],
+        },
+      }
     );
   }
 
@@ -396,22 +525,53 @@ export class TelegramService {
       return { ok: true, unauthorized: true };
     }
 
-    const [action, code, sub] = data.split(":");
+    const parts = data.split(":");
+    const action = parts[0];
+    const codeOrArg = parts[1];
+    const sub = parts[2];
 
-    if (action === "review" && code) {
-      await this.client.answerCallbackQuery(callbackId, `Memuat review ${code}...`);
-      return this.sendVideoReview(chatId, code);
+    if (action === "publish" && codeOrArg) {
+      await this.client.answerCallbackQuery(callbackId, `Mengunggah ${codeOrArg}...`);
+      await this.client.sendMessage(chatId, `⏳ <i>Sedang mengunggah <b>${codeOrArg}</b> ke Buffer...</i>`);
+      const res = await executePublishNow(codeOrArg);
+      await this.client.sendMessage(chatId, res.message);
+      return { ok: true };
     }
 
-    if (action === "approve" && code) {
-      await this.client.answerCallbackQuery(callbackId, `Konten ${code} disetujui! ✅`);
-      return this.approveContent(chatId, code);
+    if (action === "review" && codeOrArg) {
+      await this.client.answerCallbackQuery(callbackId, `Memuat review ${codeOrArg}...`);
+      return this.sendVideoReview(chatId, codeOrArg);
     }
 
-    if (action === "copy" && code && sub) {
+    if (action === "approve" && codeOrArg) {
+      await this.client.answerCallbackQuery(callbackId, `Konten ${codeOrArg} disetujui! ✅`);
+      return this.approveContent(chatId, codeOrArg);
+    }
+
+    if (action === "menu" && codeOrArg === "status") {
+      await this.client.answerCallbackQuery(callbackId, "Memuat status etalase...");
+      return this.sendStatusOverview(chatId);
+    }
+
+    if (action === "schedule" && codeOrArg === "auto") {
+      await this.client.answerCallbackQuery(callbackId, "Merapikan antrean jadwal...");
+      const res = await executeAutoScheduleQueue();
+      await this.client.sendMessage(chatId, res.message);
+      return { ok: true };
+    }
+
+    if (action === "settings" && codeOrArg === "target" && sub) {
+      const targetCount = parseInt(sub, 10) || 1;
+      await this.client.answerCallbackQuery(callbackId, `Target diset ${targetCount}x/hari!`);
+      const res = await executeUpdateSettings({ dailyTarget: targetCount });
+      await this.client.sendMessage(chatId, res.message);
+      return { ok: true };
+    }
+
+    if (action === "copy" && codeOrArg && sub) {
       await this.client.answerCallbackQuery(callbackId, `Caption ${sub.toUpperCase()} dimuat!`);
       const items = await listContentItems(DEFAULT_OWNER_ID).catch(() => []);
-      const item = items.find((i) => i.contentCode.toUpperCase() === code.toUpperCase());
+      const item = items.find((i) => i.contentCode.toUpperCase() === codeOrArg.toUpperCase());
       if (item) {
         const copyText = sub === "reels" ? (item.instagramCaption || item.tiktokCaption) : item.tiktokCaption;
         await this.client.sendMessage(
@@ -427,26 +587,5 @@ export class TelegramService {
 
     await this.client.answerCallbackQuery(callbackId);
     return { ok: true };
-  }
-
-  private async getCompletedContentCodes(items: ContentItemRecord[]): Promise<string[]> {
-    const completed: string[] = [];
-    for (const item of items) {
-      if (
-        item.contentStatus === "assembled" ||
-        item.contentStatus === "approved" ||
-        item.contentStatus === "ready_to_publish" ||
-        item.contentStatus === "published"
-      ) {
-        completed.push(item.contentCode.toUpperCase());
-        continue;
-      }
-      // Cek apakah memiliki asset final_video
-      const assets = await listAssetsForContent(DEFAULT_OWNER_ID, item.id).catch(() => []);
-      if (assets.some((a) => a.assetType === "final_video")) {
-        completed.push(item.contentCode.toUpperCase());
-      }
-    }
-    return completed;
   }
 }
