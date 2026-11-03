@@ -260,18 +260,19 @@ export function buildProjectAndPartPrompts(
     `- Aturan Bebas Teks: 100% dunia lipatan kertas origami stop-motion murni (handmade folded matte paper). DILARANG menampilkan subtitle, teks di layar, huruf, watermark, banner bertuliskan, atau manusia/objek realistis (NO subtitles, NO text on screen).`,
     `- Kontinuitas: Jaga konsistensi pakaian karakter Obim, proporsi lipatan kertas, dan pencahayaan antar bagian dari Bagian 1 hingga Bagian ${sorted.length}.`,
     ``,
-    `[ATURAN AUDIO & EFEK SUARA (SFX) WAJIB — ZERO TRANSITION CUT-OFF]`,
-    `- DILARANG KERAS ADA BACKGROUND MUSIC (NO CONTINUOUS BGM / NO AMBIENT MUSIC): Tidak boleh ada instrumen musik, beat, drone, melodi, atau ritme latar yang terus-menerus mengisi video klip.`,
-    `- DILARANG ADA SUARA BICARA (NO SPEECH / NO DIALOGUE): Karakter origami Obim dan objek lainnya dilarang mengeluarkan suara kata/bicara/vokal (narasi diisi terpisah melalui dubbing suara narator).`,
-    `- HANYA EFEK SUARA DIEGETIK PENDEK (ISOLATED FOLEY SFX): Hanya sertakan efek suara nyata kontekstual berdurasi 1-2 detik yang selaras dengan panduan Efek Suara pada setiap bagian (contoh: bunyi tebasan kertas cepat, gemerisik lipatan kertas origami, denting ide singkat, desau horor pendek, dll).`,
-    `- ATURAN KEHENINGAN DI AWAL & AKHIR (MANDATORY SILENCE AT HEAD & TAIL): Efek suara harus mulai sedikit setelah awal adegan (+0.3s) dan HARUS selesai serta memudar sempurna menjadi hening (complete fade-out to silence) minimal 0.5 detik sebelum durasi klip berakhir.`,
-    `- TUJUAN TRANSISI SINKRON: Dengan aturan jeda senyap ini, saat seluruh bagian video digabungkan secara berurutan, TIDAK AKAN ADA suara latar yang terpotong secara kasar/patah di antara pergantian scene. Konten tetap interaktif dengan aksen suara yang hidup tanpa merusak transisi.`,
+    `[ATURAN AUDIO & EFEK SUARA (SFX) WAJIB — DILARANG MUSIK & SUARA SEPANJANG VIDEO]`,
+    `- DILARANG KERAS BACKGROUND MUSIC: NO BGM, NO MUSIC, NO MELODY, NO DRONE, NO AMBIENT SOUNDTRACK! Sama sekali tidak boleh ada musik atau instrumen pengiring latar!`,
+    `- DILARANG SUARA SEPANJANG VIDEO: Efek suara TIDAK BOLEH berjalan terus-menerus di sepanjang klip video. Karena seluruh bagian video ini nantinya akan disatukan menjadi video utuh di studio, suara yang terus-menerus akan menyebabkan transisi kontras kasar (tiba-tiba muncul atau tiba-tiba terpotong).`,
+    `- HANYA EFEK SUARA PENDEK (0.5 - 1.0 DETIK SAJA): Di pertengahan adegan (detik ke-4 atau 5), HANYA boleh ada SATU bunyi efek fisik benda nyata yang sangat singkat (misal bunyi 'pop' lipatan kertas atau 'klik' halus 0.5s), lalu seketika senyap total.`,
+    `- AWAL & AKHIR WAJIB HENING (DEAD SILENCE): Detik 0-3 dan detik 7-10 WAJIB HENING TOTAL tanpa suara apa pun agar saat video disambung tidak ada audio yang terpotong kasar.`,
+    `- ZERO SPEECH, ZERO LIP SYNC: DILARANG KERAS karakter berbicara, membuka mulut, menggerakkan bibir, atau mengeluarkan suara vokal/kata apa pun! Mulut karakter WAJIB selalu terkatup rapat (CLOSED MOUTH). Dubbing narasi Obim dipasang terpisah di studio.`,
+    `- REKOMENDASI TERBAIK / JIKA RAGU: Hasilkan video yang 100% HENING / MUTE tanpa suara sama sekali!`,
     ``,
     `[DAFTAR TRANSKRIP & BAGIAN SCENE (10 DETIK / 8 DETIK PER BAGIAN)]`,
     ...detailedPartBlocks,
   ].join("\n");
 
-  const projectPrompt = `${baseUnifiedPrompt}\n\nINSTRUKSI EKSEKUSI: Kerjakan semua bagian secara berurutan menggunakan model Omni 1.1 Flash (9:16 vertikal) dan namai setiap output dengan "${safeTitle} - Bagian 1", "${safeTitle} - Bagian 2", dst.`;
+  const projectPrompt = `${baseUnifiedPrompt}\n\nINSTRUKSI EKSEKUSI: Kerjakan semua bagian secara berurutan menggunakan model Veo 3.1 - Lite (atau Omni 1.1 Flash) (9:16 vertikal) dan namai setiap output dengan "${safeTitle} - Bagian 1", "${safeTitle} - Bagian 2", dst.`;
 
   const partPrompts = sorted.map((sc) => {
     const startSec = Math.round(sc.startMs / 1000);

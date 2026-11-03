@@ -15,6 +15,7 @@ import {
 } from "@/features/video-generation/clip-matcher";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 interface IngestResult {
   filename: string;
@@ -473,16 +474,12 @@ async function executeMacroDropSync(ownerId: string) {
     }
   }
 
-  // 4. Trigger Auto-Pilot (Auto-Buffer scheduling, zero-disk cleanup & cascading progress)
-  let autopilotSummary = null;
-  try {
-    const { runAutopilotCycle } = await import(
-      "@/lib/services/autopilot-orchestrator"
-    );
-    autopilotSummary = await runAutopilotCycle(ownerId);
-  } catch {
-    // Non-blocking
-  }
+  // 4. Trigger Auto-Pilot (Auto-Buffer scheduling, zero-disk cleanup & cascading progress) in background
+  import("@/lib/services/autopilot-orchestrator")
+    .then(({ runAutopilotCycle }) => runAutopilotCycle(ownerId))
+    .catch((err) => console.error("[AUTOPILOT_BG_NONBLOCKING]", err));
+
+  const autopilotSummary = { status: "dispatched_background" };
 
   return {
     ok: true,
