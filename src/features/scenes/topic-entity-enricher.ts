@@ -447,6 +447,38 @@ const TOPIC_ARCHETYPES: TopicArchetype[] = [
     sfxMechanism: "Desir aliran energi kertas halus memudar (1.5 detik), senyap.",
     sfxResolution: "Ketukan meja kayu ramah (1 detik), senyap total.",
   },
+
+  // 13. Jam di Luar Angkasa / Dilatasi Waktu Relativitas Einstein (CO-2026-012)
+  {
+    match: (t) => t.includes("luar angkasa") || t.includes("relativitas") || t.includes("dilatasi waktu") || t.includes("jam di luar"),
+    coverProps: [
+      "Roket kapsul antariksa kertas origami putih-merah melesat menembus kanvas vertikal 9:16",
+      "Jam dinding saku raksasa kertas kuningan emas berputar liar dengan jarum kertas berdecit",
+      "Kepulan awan asap roket dari lipatan kertas perak bertingkat",
+      "Jendela kapsul bulat memperlihatkan Obim berkostum astronot kertas",
+    ],
+    coverAction:
+      "Aksi kinetik detik ke-0 (in-media-res): Roket kapsul kertas putih melesat vertikal membelah layar dengan kepulan asap roket kertas origami mekar dramatis! Di sampingnya, jam dinding saku kertas kuningan raksasa berputar kencang dengan jarum jam kertas berdecit liar, lalu mendadak membeku melambat drastis saat roket menembus orbit! Kamera snap-zoom vertikal 9:16 menukik tajam ke jendela roket: Obim berkostum astronot kertas origami menempelkan helmnya ke kaca dengan mata melotot takjub menatap jam saku di tangannya yang berdetik lambat dibanding jam di Bumi! NO subtitles, NO text on screen, NO dialogue.",
+    coverStance:
+      "Obim berkostum astronot kertas menempelkan tangan di kaca helm, mata terbelalak syok menatap jam saku kertas yang detiknya melambat.",
+    mechanismProps: [
+      "Kisi-kisi jaring kertas 3D (spacetime fabric) yang melengkung cekung elastis",
+      "Bola planet Bumi dari lipatan kertas biru-hijau pekat menekan jaring ruang-waktu",
+      "Dua jam pendulum kertas: jam di dekat Bumi berayun cepat vs jam di orbit luar angkasa berayun melambat anggun",
+    ],
+    mechanismAction:
+      "Kamera macro tracking dolly-in: Lembaran kisi-kisi kertas 3D melambangkan ruang dan waktu melengkung dalam karena tertindih bobot bola Bumi kertas origami. Obim mengamati dua jam pendulum kertas: gravitasi kuat di dekat Bumi menarik kain waktu sehingga detik jam bergerak lebih cepat, sedangkan di orbit gravitasi rendah waktu merenggang dan jam melambat anggun. (Ekspresi murni dari tatapan mata dan gestur takjub, NO speech, NO mouth movement).",
+    resolutionProps: [
+      "Satelit GPS kertas perak melayang di orbit dengan panel surya kertas biru mekar",
+      "Garis pulsa gelombang laser kertas putus-putus menembus peta kota origami di Bumi",
+      "Obim memegang dua jam saku (jam Bumi vs jam satelit) dengan perbedaan waktu sepersekian detik",
+    ],
+    resolutionAction:
+      "Kamera whip-pan ke orbit: Satelit GPS kertas menembakkan pulsa gelombang laser kertas ke peta kota di bawah untuk mengoreksi perbedaan waktu. Obim memegang dua jam saku origami dengan senyum penuh misteri, menatap lurus ke kamera 9:16 dan mengajak penonton berdebat di komentar: pilih melompat ke masa depan atau kembali ke masa lalu? Transisi visual memudar mulus kembali ke pose awal detik ke-0 (seamless loop).",
+    sfxHook: "Deru roket kertas 'whoosh' disusul letupan partikel dan detik jam melambat 'tik... tok...' (1.5 detik), hening.",
+    sfxMechanism: "Denting resonansi ruang waktu kertas halus 'ting' bergaung lembut (1 detik), fade out ke senyap.",
+    sfxResolution: "Ketukan kayu penutup ramah 'pop' (1 detik), lalu senyap total.",
+  },
 ];
 
 /**
