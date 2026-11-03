@@ -15,12 +15,13 @@ import {
   Calendar,
   Layers,
 } from "lucide-react";
-import type { AssetRecord, ContentItemRecord, SceneRecord } from "@/types/domain";
+import type { AssetRecord, ContentItemRecord, PlatformPublicationRecord, SceneRecord } from "@/types/domain";
 
 interface ProductionPriorityCardProps {
   items: ContentItemRecord[];
   allAssets: AssetRecord[];
   scenesByContent: Record<string, SceneRecord[]>;
+  allPublications?: PlatformPublicationRecord[];
 }
 
 interface PriorityItemEvaluation {
@@ -43,6 +44,7 @@ export function ProductionPriorityCard({
   items,
   allAssets,
   scenesByContent,
+  allPublications,
 }: ProductionPriorityCardProps) {
   const [now, setNow] = useState<Date>(() => new Date());
 
@@ -88,7 +90,16 @@ export function ProductionPriorityCard({
     let actionHref = "/production";
     let actionIcon: PriorityItemEvaluation["actionIcon"] = "mic";
 
-    if (item.contentStatus === "published" || item.publishedAt?.includes("Published")) {
+    const isItemPublished =
+      item.contentStatus === "published" ||
+      item.contentStatus === "archived" ||
+      Boolean(item.publishedAt) ||
+      (allPublications &&
+        allPublications
+          .filter((p) => p.contentId === item.id)
+          .some((p) => p.publishStatus === "published"));
+
+    if (isItemPublished) {
       stage = "published";
       stageLabel = "Sudah Tayang";
       stageDescription = "Video sudah dipublish ke media sosial.";
@@ -150,7 +161,7 @@ export function ProductionPriorityCard({
     return a.item.contentCode.localeCompare(b.item.contentCode);
   });
 
-  const topPriority = sortedPriority[0] || evaluations[0];
+  const topPriority = sortedPriority[0] || null;
   const nextQueues = sortedPriority.slice(1, 3);
 
   // Format countdown string

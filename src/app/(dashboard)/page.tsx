@@ -113,6 +113,7 @@ export default async function MonitorPage() {
         items={items}
         allAssets={allAssets}
         scenesByContent={scenesByContent}
+        allPublications={allPubs}
       />
 
       {/* 3. FOUR CORE METRIC CARDS */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import {
   Send,
@@ -35,6 +35,7 @@ import {
   Copy,
   Check,
   Trash2,
+  Archive,
 } from "lucide-react";
 import type {
   ContentItemRecord,
@@ -240,10 +241,11 @@ export function PublishingManager({
   const [filterTab, setFilterTab] = useState<
     "all" | "ready" | "published" | "not_ready"
   >("all");
-  const [hidePublished, setHidePublished] = useState(false);
+  const [hidePublished, setHidePublished] = useState(true);
   const [onlyFinalReady, setOnlyFinalReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
   // Interaction states
   const [editingContent, setEditingContent] =
@@ -318,6 +320,60 @@ export function PublishingManager({
         p.contentId === contentId &&
         p.platform.toLowerCase() === platform.toLowerCase()
     );
+  };
+
+  // Helper: Bulletproof published check (status published/archived, publishedAt set, or publications marked published)
+  const checkIsItemPublished = useCallback(
+    (item: ContentItemRecord): boolean => {
+      if (
+        item.contentStatus === "published" ||
+        item.contentStatus === "archived" ||
+        Boolean(item.publishedAt)
+      ) {
+        return true;
+      }
+      const itemPubs = publications.filter((p) => p.contentId === item.id);
+      return (
+        itemPubs.length > 0 &&
+        itemPubs.some((p) => p.publishStatus === "published")
+      );
+    },
+    [publications]
+  );
+
+  // Helper: Archive published content to prevent cluttered views
+  const handleArchive = async (contentId: string) => {
+    setArchivingId(contentId);
+    try {
+      const res = await fetch("/api/content", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: contentId,
+          contentStatus: "archived",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal mengarsipkan konten.");
+      }
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === contentId ? { ...it, contentStatus: "archived" } : it
+        )
+      );
+      setFeedback({
+        type: "success",
+        text: "Konten berhasil diarsipkan dan dikeluarkan dari antrean aktif.",
+      });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        text: err instanceof Error ? err.message : "Gagal mengarsipkan konten.",
+      });
+    } finally {
+      setArchivingId(null);
+    }
   };
 
   // Helper: Open smart 3-slot schedule editor
@@ -729,27 +785,29 @@ export function PublishingManager({
 
   // Compute stats
   const totalCount = sortedItems.length;
-  const readyCount = sortedItems.filter((i) => Boolean(getFinalVideo(i.id))).length;
-  const publishedCount = sortedItems.filter(
-    (i) => i.contentStatus === "published"
+  const publishedCount = sortedItems.filter(checkIsItemPublished).length;
+  const readyCount = sortedItems.filter(
+    (i) => Boolean(getFinalVideo(i.id)) && !checkIsItemPublished(i)
   ).length;
-  const notReadyCount = totalCount - readyCount;
+  const notReadyCount = sortedItems.filter(
+    (i) => !Boolean(getFinalVideo(i.id)) && !checkIsItemPublished(i)
+  ).length;
 
   // Filtered Items logic
   const filteredItems = useMemo(() => {
     return sortedItems.filter((item, idx) => {
       const finalVid = getFinalVideo(item.id);
       const isReady = Boolean(finalVid);
-      const isPublished = item.contentStatus === "published";
+      const isItemPub = checkIsItemPublished(item);
       const weekNum = Math.floor(idx / 7) + 1;
 
       // Tab filter
-      if (filterTab === "ready" && !isReady) return false;
-      if (filterTab === "published" && !isPublished) return false;
+      if (filterTab === "ready" && (!isReady || isItemPub)) return false;
+      if (filterTab === "published" && !isItemPub) return false;
       if (filterTab === "not_ready" && isReady) return false;
 
-      // Hide toggles
-      if (hidePublished && isPublished) return false;
+      // Hide toggles: if filterTab is "published", user deliberately wants to see published items so don't hide
+      if (filterTab !== "published" && hidePublished && isItemPub) return false;
       if (onlyFinalReady && !isReady) return false;
 
       // Week filter
@@ -776,6 +834,7 @@ export function PublishingManager({
     selectedWeek,
     searchQuery,
     assets,
+    checkIsItemPublished,
   ]);
 
   return (
@@ -1087,7 +1146,7 @@ export function PublishingManager({
                   const isPublishingNow = publishingMode === "now";
                   const isPublishingSchedule = publishingMode === "schedule";
                   const isAssembling = Boolean(assemblingMap[item.id]);
-                  const isPublished = item.contentStatus === "published";
+                  const isItemPub = checkIsItemPublished(item);
                   const scheduleInfo = formatPublishSchedule(
                     item.scheduledPublishAt
                   );
@@ -1126,8 +1185,9 @@ export function PublishingManager({
                   const isAllSelectedPublished =
                     publishedPlatforms.length > 0 &&
                     publishedPlatforms.length === currentPlatforms.length;
+                  const isTrulyPublished = isItemPub || isAllSelectedPublished;
                   const isPartiallyPublished =
-                    publishedPlatforms.length > 0 && !isAllSelectedPublished;
+                    publishedPlatforms.length > 0 && !isTrulyPublished;
                   const isAllSelectedScheduled =
                     scheduledPlatforms.length > 0 &&
                     scheduledPlatforms.length === currentPlatforms.length;
@@ -1440,7 +1500,7 @@ export function PublishingManager({
                               </div>
                             );
                           })()
-                        ) : isPublished ? (
+                        ) : isTrulyPublished ? (
                           <div className="space-y-1">
                             <div className="flex items-center gap-1 text-emerald-700 font-black text-[11px]">
                               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
@@ -1492,7 +1552,7 @@ export function PublishingManager({
                           {(() => {
                             const pub = getPublication(item.id, "youtube");
                             const isSelected = currentPlatforms.includes("youtube");
-                            const isPub = (isPublished && isSelected) || pub?.publishStatus === "published";
+                            const isPub = (isTrulyPublished && isSelected) || pub?.publishStatus === "published";
                             const isSched = !isPub && (pub?.publishStatus === "scheduled");
 
                             if (isPub) {
@@ -1541,7 +1601,7 @@ export function PublishingManager({
                           {(() => {
                             const pub = getPublication(item.id, "tiktok");
                             const isSelected = currentPlatforms.includes("tiktok");
-                            const isPub = (isPublished && isSelected) || pub?.publishStatus === "published";
+                            const isPub = (isTrulyPublished && isSelected) || pub?.publishStatus === "published";
                             const isSched = !isPub && (pub?.publishStatus === "scheduled");
 
                             if (isPub) {
@@ -1590,7 +1650,7 @@ export function PublishingManager({
                           {(() => {
                             const pub = getPublication(item.id, "instagram");
                             const isSelected = currentPlatforms.includes("instagram");
-                            const isPub = (isPublished && isSelected) || pub?.publishStatus === "published";
+                            const isPub = (isTrulyPublished && isSelected) || pub?.publishStatus === "published";
                             const isSched = !isPub && (pub?.publishStatus === "scheduled");
 
                             if (isPub) {
@@ -1660,8 +1720,7 @@ export function PublishingManager({
 
                       {/* 5. Status Badge */}
                       <td className="py-3.5 px-4 align-top">
-                        {isAllSelectedPublished ||
-                        (isPublished && publishedPlatforms.length >= 2) ? (
+                        {isTrulyPublished ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
                             <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                             Published {publishedPlatforms.length > 0 ? `(${publishedPlatforms.length}/3)` : ""}
@@ -1715,16 +1774,16 @@ export function PublishingManager({
                               />
                               <span>
                                 {isAssembling
-                                  ? "Merakit..."
-                                  : "🔨 Rakit Video"}
+                              ? "Merakit..."
+                              : "🔨 Rakit Video"}
                               </span>
                             </button>
-                          ) : isPublished || isAllSelectedPublished ? (
-                            /* SUDAH TAYANG (DOUBLE-PUBLISH SAFEGUARD) */
-                            <div className="inline-flex items-center gap-1">
+                          ) : isTrulyPublished ? (
+                            /* SUDAH TAYANG (DOUBLE-PUBLISH SAFEGUARD & ARSIPKAN) */
+                            <div className="inline-flex items-center gap-1.5 flex-wrap">
                               <span
                                 className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-300 px-2.5 py-1.5 text-[11px] font-black text-emerald-800 shadow-2xs select-none"
-                                title="Video ini sudah berhasil diposting ke Buffer & Media Sosial"
+                                title="Video ini sudah berhasil diposting ke Buffer & Media Sosial. Pengunggahan ganda dinonaktifkan."
                               >
                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                                 <span>Sudah Tayang</span>
@@ -1732,12 +1791,19 @@ export function PublishingManager({
 
                               <button
                                 type="button"
-                                onClick={() => setRepublishConfirmItem(item)}
+                                disabled={archivingId === item.id}
+                                onClick={() => handleArchive(item.id)}
                                 className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors shadow-2xs"
-                                title="Klik jika ingin mempublikasikan ulang video ini (ada konfirmasi pengamanan)"
+                                title="Arsipkan konten ini agar tidak memenuhi antrean aktif"
                               >
-                                <RefreshCw className="h-3 w-3 text-slate-400" />
-                                <span>Publikasi Ulang</span>
+                                <Archive className="h-3 w-3 text-slate-500" />
+                                <span>
+                                  {archivingId === item.id
+                                    ? "..."
+                                    : item.contentStatus === "archived"
+                                    ? "Terarsip"
+                                    : "Arsipkan"}
+                                </span>
                               </button>
                             </div>
                           ) : isPartiallyPublished ? (
@@ -2354,10 +2420,7 @@ export function PublishingManager({
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {previewContent &&
-                      (selectedPlatformsMap[previewContent.id] || ["youtube", "tiktok", "instagram"]).every(
-                        (p) => getPublication(previewContent.id, p)?.publishStatus === "published"
-                      ) ? (
+                      {previewContent && checkIsItemPublished(previewContent) ? (
                         <>
                           <div className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-950/80 border border-emerald-500/60 px-3.5 py-2 text-xs font-bold text-emerald-300">
                             <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -2365,15 +2428,15 @@ export function PublishingManager({
                           </div>
                           <button
                             type="button"
+                            disabled={archivingId === previewContent.id}
                             onClick={() => {
-                              const target = previewContent;
+                              handleArchive(previewContent.id);
                               setPreviewContent(null);
-                              setRepublishConfirmItem(target);
                             }}
                             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-600 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700 transition-colors"
                           >
-                            <RefreshCw className="h-3.5 w-3.5 text-slate-400" />
-                            <span>Publikasi Ulang</span>
+                            <Archive className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{previewContent.contentStatus === "archived" ? "Terarsip" : "Arsipkan Konten"}</span>
                           </button>
                         </>
                       ) : (

@@ -176,6 +176,18 @@ export async function publishContentToBuffer(
         ? existingPub.externalPostUrl.split("/").pop()?.trim()
         : undefined;
 
+      // STRICT ANTI-DUPLICATE GUARD: If this channel was ALREADY published, block duplicate post!
+      if (existingPub?.publishStatus === "published") {
+        results.push({
+          ok: true,
+          channelId: ch.id,
+          service: ch.service,
+          postId: existingPostId || "already-published",
+          status: "published",
+        });
+        continue;
+      }
+
       // ANTI-DUPLICATE SAFEGUARD: If this post was ALREADY scheduled in Buffer,
       // UPDATE the existing Buffer post's dueAt instead of creating a duplicate!
       if (!params.publishNow && existingPub?.publishStatus === "scheduled" && existingPostId) {
@@ -227,6 +239,7 @@ export async function publishContentToBuffer(
     await updateContentItem(ownerId, {
       id: contentId,
       contentStatus: "published",
+      publishedAt: new Date().toISOString(),
     });
 
     try {
