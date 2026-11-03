@@ -325,18 +325,20 @@ async function processBatchTask(prof, batch, batchIndex, totalBatches) {
   autoPasteTagAndSubmit();
   console.log(`🚀 Prompt batch untuk ${batch.sceneCount} video berhasil dikirimkan ke Google Flow!`);
 
-  // 4. Klik Approve Sekali & Langsung Pindah ke Profil Berikutnya
-  console.log(`\n⏳ [LANGKAH 4/4] Menunggu AI Flow menampilkan tombol konfirmasi kredit (~12 detik)...`);
-  console.log(`   (Tekan [ENTER] jika tombol Approve sudah muncul lebih cepat di layar Anda)`);
+  // 4. Menunggu Tombol Approve Muncul & Klik Approve 1x Lalu Pindah Profil
+  console.log(`\n⏳ [LANGKAH 4/4] Menunggu AI Google Flow menampilkan tombol konfirmasi kredit (~25 detik)...`);
+  console.log(`   (Jika tombol Approve sudah muncul lebih cepat di layar Anda, silakan tekan [ENTER] di sini)`);
 
-  const userAction = await waitForUserOrTimeout(12, '⏱️  Menunggu tombol Approve muncul di Google Flow');
+  const userAction = await waitForUserOrTimeout(25, '⏱️  Menunggu dialog Approve muncul di Google Flow');
   if (userAction === 'enter') {
-    console.log('\n⚡ [USER TRIGGER] Tombol ENTER ditekan, langsung mengklik Approve...');
+    console.log('\n⚡ [USER TRIGGER] Tombol ENTER ditekan, langsung mengeksekusi klik Approve...');
+  } else {
+    console.log('\n⏱️  Waktu tunggu selesai, mengeksekusi klik Approve...');
   }
 
-  console.log(`\n🖱️  Mengklik tombol Approve / Always approve (1x)...`);
+  console.log(`🖱️  Mengklik tombol Approve / Always approve (1x)...`);
   autoClickApprove();
-  await delay(2000);
+  await delay(2500);
 
   console.log(`✅ Tombol konfirmasi kredit berhasil diklik! Render ${batch.sceneCount} video berjalan di cloud Google Flow.`);
   console.log(`🎉 PROFIL ${prof.index} SELESAI DI-PROMPT! Google Flow sedang merender ${batch.sceneCount} video di akun ini.`);
