@@ -3861,6 +3861,10 @@ export async function runContentVideoAssembly(
     }
   }
 
+  if (options?.forceReassemble && initialJob.status === "succeeded") {
+    initialJob.status = "queued";
+  }
+
   const runningJob = transitionProductionJob(initialJob, "running", {
     progressPercent: 45,
     providerRequestId: `ffmpeg-${Date.now()}`,

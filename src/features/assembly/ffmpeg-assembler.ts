@@ -156,15 +156,7 @@ export function buildAndValidateAssemblyManifest(params: {
   });
   inputArgs.push("-i", voiceAsset.storagePath);
 
-  // Scale & pad clips to 9:16 (1080x1920 30fps) WITHOUT trimming/cutting
-  const scaleFilters = orderedScenes
-    .map((_, i) => {
-      return `[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=30,format=yuv420p[v${i}]`;
-    })
-    .join(";");
-  const concatInputs = orderedScenes.map((_, i) => `[v${i}]`).join("");
-
-  // Check which scene clips have audio tracks and measure duration for diegetic SFX mixing
+  // Check which scene clips have audio tracks and measure duration for diegetic SFX mixing & scene sync
   const ffmpegBin = getFfmpegBinaryPath();
   const clipMediaInfo = orderedScenes.map((sc) => {
     try {
@@ -191,6 +183,26 @@ export function buildAndValidateAssemblyManifest(params: {
     }
   });
 
+  // Scale & pad clips to 9:16 (1080x1920 30fps) with scene duration alignment (no cut-offs)
+  const scaleFilters = orderedScenes
+    .map((sc, i) => {
+      const info = clipMediaInfo[i];
+      const actualDur = info ? info.durationSec : sc.expectedDurationMs / 1000;
+      const targetDur = sc.expectedDurationMs / 1000;
+      let padFilter = "";
+      if (targetDur > actualDur + 0.05) {
+        // Klip lebih pendek dari durasi narasi scene -> tahan frame terakhir (stop_mode=clone) agar video tidak terpotong
+        const padSec = (targetDur - actualDur).toFixed(3);
+        padFilter = `,tpad=stop_mode=clone:stop_duration=${padSec}`;
+      } else if (actualDur > targetDur + 0.2) {
+        // Klip lebih panjang dari durasi narasi scene -> potong rapi di batas akhir scene
+        padFilter = `,trim=0:${targetDur.toFixed(3)},setpts=PTS-STARTPTS`;
+      }
+      return `[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=30,format=yuv420p${padFilter}[v${i}]`;
+    })
+    .join(";");
+  const concatInputs = orderedScenes.map((_, i) => `[v${i}]`).join("");
+
   const anyClipHasAudio = Boolean(ffmpegBin) && clipMediaInfo.some((m) => m.hasAudio);
 
   let filterComplex: string;
@@ -203,12 +215,16 @@ export function buildAndValidateAssemblyManifest(params: {
           hasAudio: false,
           durationSec: sc.expectedDurationMs / 1000,
         };
+        const targetDur = sc.expectedDurationMs / 1000;
         if (info.hasAudio) {
-          // Keep clip diegetic SFX uncut at balanced volume
-          return `[${i}:a]volume=0.45,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[a${i}]`;
+          if (targetDur > info.durationSec + 0.05) {
+            const padSec = (targetDur - info.durationSec).toFixed(3);
+            return `[${i}:a]volume=0.45,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,apad=pad_dur=${padSec}[a${i}]`;
+          }
+          return `[${i}:a]volume=0.45,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,atrim=0:${targetDur.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`;
         }
-        // Graceful silent audio spacer matching the exact clip duration
-        return `anullsrc=channel_layout=stereo:sample_rate=44100,atrim=0:${info.durationSec.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`;
+        // Graceful silent audio spacer matching the exact target duration
+        return `anullsrc=channel_layout=stereo:sample_rate=44100,atrim=0:${targetDur.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`;
       })
       .join(";");
 

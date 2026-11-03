@@ -114,6 +114,9 @@ export class TelegramClient {
       supports_streaming: options?.supports_streaming ?? true,
       reply_markup: options?.reply_markup,
     };
+    if (options?.width) payload.width = options.width;
+    if (options?.height) payload.height = options.height;
+    if (options?.duration) payload.duration = options.duration;
 
     try {
       return await this.callApi("sendVideo", payload);
@@ -131,6 +134,78 @@ export class TelegramClient {
       }
       throw err;
     }
+  }
+
+  async sendVideoFile(
+    chatId: number | string,
+    videoBuffer: Buffer,
+    filename: string,
+    options?: TelegramSendVideoOptions & { thumbBuffer?: Buffer }
+  ) {
+    if (!this.isConfigured()) {
+      throw new Error("TELEGRAM_BOT_TOKEN_MISSING: Token bot belum dikonfigurasi.");
+    }
+
+    const formData = new FormData();
+    formData.append("chat_id", String(chatId));
+    formData.append("video", new Blob([videoBuffer], { type: "video/mp4" }), filename);
+    if (options?.caption) formData.append("caption", options.caption);
+    if (options?.parse_mode) formData.append("parse_mode", options.parse_mode);
+    if (options?.width) formData.append("width", String(options.width));
+    if (options?.height) formData.append("height", String(options.height));
+    if (options?.duration) formData.append("duration", String(options.duration));
+    if (options?.supports_streaming !== undefined) {
+      formData.append("supports_streaming", String(options.supports_streaming));
+    }
+    if (options?.reply_markup) {
+      formData.append("reply_markup", JSON.stringify(options.reply_markup));
+    }
+    if (options?.thumbBuffer) {
+      formData.append("thumb", new Blob([options.thumbBuffer], { type: "image/jpeg" }), "thumb.jpg");
+    }
+
+    const response = await fetch(`${this.baseUrl}/sendVideo`, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) {
+      const errMsg = data?.description || response.statusText || "Gagal upload video ke Telegram";
+      throw new Error(`TELEGRAM_API_ERROR (sendVideoFile): ${errMsg}`);
+    }
+
+    return data.result;
+  }
+
+  async sendDocumentFile(
+    chatId: number | string,
+    fileBuffer: Buffer,
+    filename: string,
+    options?: { caption?: string; parse_mode?: "HTML" | "Markdown" }
+  ) {
+    if (!this.isConfigured()) {
+      throw new Error("TELEGRAM_BOT_TOKEN_MISSING: Token bot belum dikonfigurasi.");
+    }
+
+    const formData = new FormData();
+    formData.append("chat_id", String(chatId));
+    formData.append("document", new Blob([fileBuffer], { type: "video/mp4" }), filename);
+    if (options?.caption) formData.append("caption", options.caption);
+    if (options?.parse_mode) formData.append("parse_mode", options.parse_mode);
+
+    const response = await fetch(`${this.baseUrl}/sendDocument`, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) {
+      const errMsg = data?.description || response.statusText || "Gagal upload dokumen ke Telegram";
+      throw new Error(`TELEGRAM_API_ERROR (sendDocumentFile): ${errMsg}`);
+    }
+
+    return data.result;
   }
 
   async sendChatAction(
