@@ -1223,7 +1223,7 @@ function FragmentRow({
                 Narasi Penuh (
                 {fixedAudioSeconds
                   ? `Durasi Audio Fix: ${fixedAudioSeconds} Detik`
-                  : `${item.narration.length} Karakter • Durasi Fix Menunggu Audio ElevenLabs`}
+                  : `${item.narration.length} Karakter • Durasi Fix Menunggu Audio Gemini TTS`}
                 ):
               </span>
               <div className="flex flex-wrap gap-2">

@@ -85,7 +85,7 @@ export function ProductionPriorityCard({
 
     let stage: PriorityItemEvaluation["stage"] = "needs_audio";
     let stageLabel = "1. Butuh Voice Over";
-    let stageDescription = "Audio narasi ElevenLabs belum digenerate.";
+    let stageDescription = "Audio narasi Gemini AI TTS belum digenerate.";
     let actionLabel = "Generate Voice Over";
     let actionHref = "/production";
     let actionIcon: PriorityItemEvaluation["actionIcon"] = "mic";

@@ -15,7 +15,7 @@ export default async function ModelsUsagePage() {
     <div className="space-y-6">
       <PageHeader
         title="Models Usage & Multi-Account API"
-        subtitle="Kelola daftar Akun Google, pantau sisa kuota kredit real-time Google Flow, ElevenLabs & Google Gemini AI, serta pilih akun aktif untuk produksi."
+        subtitle="Kelola 12 Akun Google, pantau kuota harian Gemini AI TTS & kredit Google Flow real-time, serta pilih akun aktif untuk produksi."
         milestoneLabel="Models Usage"
         statusLabel={
           activeProfile
@@ -24,7 +24,7 @@ export default async function ModelsUsagePage() {
         }
       />
 
-      {/* Google Flow 10-Profile Credit Visualizer Bar */}
+      {/* Google Flow 12-Profile Credit Visualizer Bar */}
       <FlowCreditVisualizer />
 
       <AccountProfileSwitcher focusMode="all" defaultExpanded={false} />

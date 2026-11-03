@@ -53,7 +53,7 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     label: "Models Usage",
     shortLabel: "Ganti Akun",
     href: "/models-usage",
-    description: "Ganti Akun Google (Multi-Account), pantau kuota Gemini TTS, Google Flow & ElevenLabs",
+    description: "Ganti Akun Google (12 Profil), pantau kuota Gemini TTS & Google Flow",
     milestoneTag: "Akun AI",
   },
   {

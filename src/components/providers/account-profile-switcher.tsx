@@ -362,7 +362,7 @@ export function AccountProfileSwitcher({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-sky-900">
-                Daftar Akun Produksi & Cek Real-Time Kuota ({profiles.length} Akun)
+                Daftar Akun Produksi & Cek Real-Time Kuota ({profiles.length} Profil Google)
               </span>
               <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-[11px] font-bold text-indigo-950">
                 Total Sisa Google Flow: {totalFlowCredits} / {totalFlowMax} Kredit (~{totalFlowVideos} Video Siap)
@@ -371,55 +371,16 @@ export function AccountProfileSwitcher({
                 Total Sisa Gemini TTS Hari Ini: {totalGeminiTtsRemaining} /{" "}
                 {totalGeminiTtsLimit} Audio (Reset Setiap Hari)
               </span>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-900">
-                Total Sisa ElevenLabs:{" "}
-                {totalRemainingAllAccounts.toLocaleString("id-ID")} /{" "}
-                {totalLimitAllAccounts.toLocaleString("id-ID")} kredit
-              </span>
             </div>
             <p className="text-[11px] text-stone-500">
-              Setiap akun memiliki <strong>Google Flow Chrome Profil (target 50 kredit)</strong>, <strong>kuota harian Gemini AI</strong> (
-              <strong>10 Audio TTS/hari</strong> untuk suara Obim{" "}
-              <strong>10 Audio TTS/hari</strong> untuk suara Obim{" "}
-              <em>Puck Bold</em> + <strong>1.500 Text Request/hari</strong>,
-              reset setiap hari) serta{" "}
-              <strong>kredit bulanan ElevenLabs</strong> (10.000 kredit/akun).
+              Setiap profil terhubung ke <strong>Akun Google Chrome (target 50 kredit Google Flow)</strong> serta <strong>Google AI Studio API</strong> (
+              <strong>10 Audio TTS Gemini Puck Bold/hari</strong> + <strong>1.500 Text Request/hari</strong>, reset otomatis setiap hari).
             </p>
           </div>
         </div>
 
         {/* Right Controls */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          {focusMode === "elevenlabs" || focusMode === "all" ? (
-            <div className="flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5">
-              <Volume2 className="h-3.5 w-3.5 text-sky-600" />
-              <span className="text-[11px] font-semibold text-stone-500">
-                Mode:
-              </span>
-              <select
-                aria-label="Pilih Model ElevenLabs"
-                disabled={switching}
-                value={
-                  activeProfile?.elevenlabsModelId || "eleven_flash_v2_5"
-                }
-                onChange={(e) =>
-                  handleChangeModel(e.target.value as ElevenLabsModelId)
-                }
-                className="rounded-lg bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-900 focus:outline-none"
-              >
-                <option value="eleven_flash_v2_5">
-                  ⚡ Flash v2.5 (Hemat 50% • 0.5 kredit/huruf)
-                </option>
-                <option value="eleven_turbo_v2_5">
-                  🚀 Turbo v2.5 (Hemat 50% • 0.5 kredit/huruf)
-                </option>
-                <option value="eleven_multilingual_v2">
-                  🎙️ Multilingual v2 (Standar • 1 kredit/huruf)
-                </option>
-              </select>
-            </div>
-          ) : null}
-
           <button
             type="button"
             onClick={() => void loadVault({ live: true })}
@@ -446,31 +407,6 @@ export function AccountProfileSwitcher({
           </button>
         </div>
       </div>
-
-      {/* Important Banner if ElevenLabs API Key is missing User -> Read permission */}
-      {anyMissingUserRead ? (
-        <div className="flex flex-col justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-2">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-            <div>
-              <p className="font-bold">
-                ⚠️ Kenapa Kredit Asli ElevenLabs Belum Bisa Ditarik Langsung dari Server?
-              </p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-amber-900">
-                Saat kami menembak server ElevenLabs, API Key Anda menjawab:{" "}
-                <code className="rounded bg-amber-100 px-1 font-mono">
-                  missing_permissions: user_read
-                </code>{" "}
-                (dan <strong>Akun Google 5</strong> key ElevenLabs-nya tidak valid / 401). Supaya angka kredit yang tampil adalah{" "}
-                <strong>100% angka asli dari server ElevenLabs</strong> (misal sisa 8.312 kredit), silakan buka{" "}
-                <strong>ElevenLabs &rarr; Developers &rarr; API Keys &rarr; Edit Key</strong> lalu aktifkan izin{" "}
-                <strong>User: Read</strong> (atau pilih <em>Unrestricted</em>), lalu klik tombol{" "}
-                <strong>⚡ Trigger Cek Real-Time</strong>.
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {/* Stacked List of All Accounts & Their Quotas */}
       <div className="space-y-2.5">
@@ -555,80 +491,7 @@ export function AccountProfileSwitcher({
                 </div>
               </div>
 
-              {/* Col 2: ElevenLabs Real-Time Credit Box */}
-              <div className="flex-1 rounded-xl border border-stone-200/90 bg-stone-50/70 p-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
-                  <span className="inline-flex items-center gap-1 font-bold text-stone-800">
-                    <Volume2 className="h-3.5 w-3.5 text-sky-600" />
-                    <span>ElevenLabs:</span>
-                    <code className="font-mono text-[11px] font-normal text-stone-500">
-                      {p.elevenlabsKeyPreview}
-                    </code>
-                  </span>
-
-                  {q?.status === "ok" ? (
-                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                      ✓ Real-Time Server ElevenLabs
-                    </span>
-                  ) : q?.elevenlabsTtsReady === false ? (
-                    <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
-                      ✗ Key Error / 401 Tidak Valid
-                    </span>
-                  ) : (
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
-                      ✓ TTS Ready (Butuh Izin User Read utk Angka Server)
-                    </span>
-                  )}
-                </div>
-
-                {p.hasElevenlabsKey ? (
-                  <div className="mt-1.5">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-stone-700">
-                        Sisa Kredit:{" "}
-                        <strong
-                          className={`font-mono text-xs ${
-                            q?.elevenlabsTtsReady === false || rem < 1000
-                              ? "text-rose-600"
-                              : "text-emerald-700"
-                          }`}
-                        >
-                          {q?.elevenlabsTtsReady === false
-                            ? "0 (Key Salah)"
-                            : rem.toLocaleString("id-ID")}
-                        </strong>{" "}
-                        / {lim.toLocaleString("id-ID")}
-                        <span className="ml-1 text-[10px] text-stone-400">
-                          (Terpakai: {used.toLocaleString("id-ID")})
-                        </span>
-                      </span>
-                      <span className="font-bold text-sky-800">
-                        ~{q?.elevenlabsTtsReady === false ? 0 : estVideos} Video
-                      </span>
-                    </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-stone-200">
-                      <div
-                        className={`h-full transition-all ${
-                          q?.elevenlabsTtsReady === false || rem < 1000
-                            ? "bg-rose-500"
-                            : "bg-emerald-500"
-                        }`}
-                        style={{
-                          width: `${
-                            q?.elevenlabsTtsReady === false ? 100 : pctRemaining
-                          }%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-1 text-[11px] italic text-rose-600">
-                    Belum ada API Key ElevenLabs
-                  </p>
-                )}
-              </div>
-
-              {/* Col 3: Google Gemini Real-Time Quota Box */}
+              {/* Col 2: Google Gemini Real-Time Quota Box */}
               <div className="flex-1 rounded-xl border border-stone-200/90 bg-stone-50/70 p-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                   <span className="inline-flex items-center gap-1 font-bold text-stone-800">
@@ -897,17 +760,17 @@ export function AccountProfileSwitcher({
             ) : null}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <label className="block text-[11px] font-bold text-stone-700">
-                1. Nama Label Akun *
+                1. Nama Label Profil *
               </label>
               <input
                 type="text"
                 required
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="Contoh: Akun Google 3"
+                placeholder="Contoh: 11(studio)"
                 className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-xs focus:border-sky-600 focus:outline-none"
               />
             </div>
@@ -927,24 +790,7 @@ export function AccountProfileSwitcher({
 
             <div>
               <label className="block text-[11px] font-bold text-stone-700">
-                3. 🔊 ElevenLabs API Key (`sk_...`)
-              </label>
-              <input
-                type="password"
-                value={elevenlabsApiKey}
-                onChange={(e) => setElevenlabsApiKey(e.target.value)}
-                placeholder={
-                  editingId
-                    ? "Kosongkan jika tidak ganti key"
-                    : "Tempel sk_..."
-                }
-                className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 font-mono text-xs focus:border-sky-600 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-stone-700">
-                4. ✨ Gemini API Key (Opsional)
+                3. ✨ Google AI Studio API Key (`AQ....`)
               </label>
               <input
                 type="password"
@@ -953,47 +799,8 @@ export function AccountProfileSwitcher({
                 placeholder={
                   editingId
                     ? "Kosongkan jika tidak ganti key"
-                    : "AIza... / AQ...."
+                    : "AQ.... / AIza..."
                 }
-                className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 font-mono text-xs focus:border-sky-600 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <label className="block text-[11px] font-bold text-stone-700">
-                Voice ID ElevenLabs (Mark Default)
-              </label>
-              <input
-                type="text"
-                value={elevenlabsVoiceId}
-                onChange={(e) => setElevenlabsVoiceId(e.target.value)}
-                placeholder="UgBBYS2sOqTuMpoF3BR0"
-                className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 font-mono text-xs focus:border-sky-600 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-stone-700">
-                Kuota Awal Akun (Default Gratis = 10.000)
-              </label>
-              <input
-                type="number"
-                value={localCreditLimit}
-                onChange={(e) => setLocalCreditLimit(Number(e.target.value))}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 font-mono text-xs focus:border-sky-600 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-stone-700">
-                Kredit yang Sudah Terpakai Saat Ini
-              </label>
-              <input
-                type="number"
-                value={localUsedCredits}
-                onChange={(e) => setLocalUsedCredits(Number(e.target.value))}
                 className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 font-mono text-xs focus:border-sky-600 focus:outline-none"
               />
             </div>

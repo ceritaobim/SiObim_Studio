@@ -343,7 +343,7 @@ export function VoiceSceneManager({
           {/* Option B: Manual MP3 Upload + Optional Alignment JSON */}
           <SectionCard
             title="Opsi B: Unggah MP3 Manual & Impor Timestamp (Fallback)"
-            description="Jika Anda membuat suara secara manual di web ElevenLabs, unggah MP3-nya di sini."
+            description="Jika Anda memiliki file audio narasi rekaman sendiri atau eksternal, unggah MP3/WAV-nya di sini."
             badge={<StatusBadge label="Fallback Aman" variant="info" />}
           >
             <form

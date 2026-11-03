@@ -565,7 +565,7 @@ export function resolveDirectStudioQuery(
     const officeReport =
       `🏢 <b>KANTOR VIRTUAL CERITAOBIM:</b>\n` +
       `• 👔 <b>Manajer:</b> Ready "${nextTitle}" (${snapshot.settings.dailyVideoTarget} video/hari)\n` +
-      `• 🎙️ <b>Tim Audio:</b> 42 narasi suara Obim siap pakai (ElevenLabs)\n` +
+      `• 🎙️ <b>Tim Audio:</b> 42 narasi suara Obim siap pakai (Google Gemini AI TTS)\n` +
       `• 🎬 <b>Produser:</b> 18 video final 9:16 bebas teks terkunci\n` +
       `• 💡 <b>Tim Kreatif:</b> 3 program harian seimbang tanpa duplikasi\n` +
       `• 💻 <b>Tim IT:</b> Web, Makro & Telegram Webhook Online 100%`;
