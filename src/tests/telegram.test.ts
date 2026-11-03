@@ -186,5 +186,23 @@ describe("Telegram Bot & Security Whitelist Integration", () => {
     expect(specificRes.matched).toBe(true);
     expect(specificRes.replyText).toContain("Published");
     expect(specificRes.replyText).toContain("Rahasia Nasi Goreng Enak");
+
+    // 6. Kueri Kantor Virtual & Role Delegation
+    const officeRes = resolveDirectStudioQuery("/office", snapshot);
+    expect(officeRes.matched).toBe(true);
+    expect(officeRes.replyText).toContain("KANTOR VIRTUAL CERITAOBIM");
+    expect(officeRes.replyText).toContain("Manajer");
+    expect(officeRes.replyText).toContain("Tim Audio");
+    expect(officeRes.replyText).toContain("Produser");
+    expect(officeRes.replyText).toContain("Tim Kreatif");
+    expect(officeRes.replyText).toContain("Tim IT");
+
+    // 7. Delegasi Tim IT
+    const itRes = resolveDirectStudioQuery("it: status server", snapshot);
+    expect(itRes.matched).toBe(true);
+    expect(itRes.replyText).toContain("Tim IT & DevOps");
+    expect(itRes.replyText).toContain("Website Studio");
+    expect(itRes.replyText).toContain("Robot Makro");
+    expect(itRes.replyText).toContain("Bot Telegram");
   });
 });

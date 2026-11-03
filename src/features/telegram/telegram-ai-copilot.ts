@@ -101,7 +101,7 @@ ATURAN FORMAT SANGAT KETAT (WAJIB DIIKUTI):
 FAKTA REAL-TIME STUDIO SAAT INI:
 • Waktu Sekarang: ${snap.nowWibText}
 • Target Upload: ${snap.settings.dailyVideoTarget} Video / Hari (${snap.settings.defaultUploadHour})
-• Konten Sudah Tayang di Medsos (10 Video):
+• Konten Sudah Tayang di Medsos (${snap.publishedItems.length} Video):
 ${publishedSummary}
 
 • Konten Terjadwal di Buffer:
@@ -147,7 +147,7 @@ PANDUAN JAWABAN:
         },
       ],
       generationConfig: {
-        temperature: 0.5,
+        temperature: 0.1,
         maxOutputTokens: 1024,
       },
     };

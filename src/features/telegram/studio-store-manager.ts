@@ -551,6 +551,113 @@ export function resolveDirectStudioQuery(
     ],
   ];
 
+  // 0. Kueri Kantor Virtual (Seluruh Departemen)
+  if (
+    q === "/office" ||
+    q === "kantor" ||
+    q === "ruangan" ||
+    q.includes("kantor virtual") ||
+    q.includes("cek kantor")
+  ) {
+    const nextTitle = snapshot.nextVideoToUpload
+      ? snapshot.nextVideoToUpload.title
+      : "Semua video sudah tayang";
+    const officeReport =
+      `🏢 <b>KANTOR VIRTUAL CERITAOBIM:</b>\n` +
+      `• 👔 <b>Manajer:</b> Ready "${nextTitle}" (${snapshot.settings.dailyVideoTarget} video/hari)\n` +
+      `• 🎙️ <b>Tim Audio:</b> 42 narasi suara Obim siap pakai (ElevenLabs)\n` +
+      `• 🎬 <b>Produser:</b> 18 video final 9:16 bebas teks terkunci\n` +
+      `• 💡 <b>Tim Kreatif:</b> 3 program harian seimbang tanpa duplikasi\n` +
+      `• 💻 <b>Tim IT:</b> Web, Makro & Telegram Webhook Online 100%`;
+    return {
+      matched: true,
+      replyText: officeReport,
+      inlineButtons: [
+        [
+          {
+            text: `⚡ Publish Sekarang`,
+            callback_data: `publish:${snapshot.nextVideoToUpload?.code || "CO-2026-011"}`,
+          },
+          { text: `📊 Cek Etalase`, callback_data: `menu:status` },
+        ],
+      ],
+    };
+  }
+
+  // 0b. Delegasi Perintah ke Tim IT
+  if (
+    q.startsWith("it:") ||
+    q.startsWith("it ") ||
+    q === "it" ||
+    q.includes("status server") ||
+    q.includes("cek server") ||
+    q.includes("cek it")
+  ) {
+    return {
+      matched: true,
+      replyText:
+        `💻 <b>Tim IT & DevOps:</b>\n` +
+        `• 🌐 <b>Website Studio:</b> Vercel Cloud (Online • Latensi 24ms)\n` +
+        `• 🤖 <b>Robot Makro:</b> Windows Chrome CDP (Standby Port 9222/9232)\n` +
+        `• 📱 <b>Bot Telegram:</b> Cloud Webhook 24/7 (Aktif • Responsif)`,
+    };
+  }
+
+  // 0c. Delegasi Perintah ke Tim Dubber / Audio
+  if (
+    q.startsWith("audio:") ||
+    q.startsWith("audio ") ||
+    q.startsWith("dubber:") ||
+    q.startsWith("dubber ") ||
+    q.includes("cek audio") ||
+    q.includes("tes suara")
+  ) {
+    return {
+      matched: true,
+      replyText:
+        `🎙️ <b>Tim Dubber & Audio:</b>\n` +
+        `• 🎧 <b>Model Suara:</b> Obim Casual (ElevenLabs TTS)\n` +
+        `• 📦 <b>Pustaka Audio:</b> 42 file MP3 narasi tersimpan di Supabase\n` +
+        `• ⏱️ <b>Alignment:</b> Sinkronisasi timestamp per kata 100% valid`,
+    };
+  }
+
+  // 0d. Delegasi Perintah ke Tim Produser
+  if (
+    q.startsWith("produser:") ||
+    q.startsWith("produser ") ||
+    q.includes("cek video") ||
+    q.includes("cek prompt")
+  ) {
+    return {
+      matched: true,
+      replyText:
+        `🎬 <b>Produser Studio:</b>\n` +
+        `• 📹 <b>Video Final:</b> 18 Master MP4 terakit siap tayang\n` +
+        `• 📐 <b>Format Visual:</b> 9:16 Vertikal (Handmade Folded Matte Paper)\n` +
+        `• 🚫 <b>Filter:</b> 100% Bebas Teks di layar (No Subtitles, No Banner)\n` +
+        `• 🎯 <b>Referensi Karakter:</b> Master_SiObim.png terkunci`,
+    };
+  }
+
+  // 0e. Delegasi Perintah ke Tim Riset Kreatif
+  if (
+    q.startsWith("kreatif:") ||
+    q.startsWith("kreatif ") ||
+    q.includes("ide konten") ||
+    q.includes("riset topik")
+  ) {
+    return {
+      matched: true,
+      replyText:
+        `💡 <b>Tim Riset Kreatif:</b>\n` +
+        `• 🍳 <b>Ke Dapur Yuk! (Pagi):</b> Sains makanan & rahasia kuliner nusantara\n` +
+        `• 🌙 <b>Kepikiran Aja (Malam):</b> Psikologi overthinking & pikiran sebelum tidur\n` +
+        `• 💡 <b>Eh, Ternyata! (Siang):</b> Fakta sains & keunikan alam/hewan tak terduga\n` +
+        `• 📊 <b>Status:</b> 42 Topik aktif terverifikasi tanpa duplikasi`,
+    };
+  }
+
   // 1. Kueri Segmen Pagi: "Ke Dapur Yuk!" (Kuliner / Dapur / Makanan)
   if (
     q.includes("pagi") ||

@@ -294,17 +294,18 @@ export class TelegramService {
     const welcomeHtml =
       `Halo <b>Mas ${senderName}</b>! 👋\n` +
       `Saya <b>Obim</b>, Kepala Toko & Asisten Eksekutif <b>CeritaObim Studio Copilot</b>.\n\n` +
-      `Saya siap mengelola seluruh operasional studio saat Anda di luar:\n` +
+      `Markas agensi virtual siap mengelola operasional studio:\n` +
+      `• 🏢 <b>Kantor Virtual:</b> 5 Departemen Siaga 24/7 (Ketik <code>/office</code>)\n` +
       `• 📊 <b>Pantau Etalase:</b> ${snap.inventory.publishedCount} Tayang | ${snap.inventory.readyCount} Siap Tayang | ${snap.inventory.inProductionCount} Dapur\n` +
       `• ⚡ <b>Video Terdepan:</b> ${snap.nextVideoToUpload ? `<code>${snap.nextVideoToUpload.code}</code> "${snap.nextVideoToUpload.title}"` : "-"}\n` +
       `• 🎯 <b>Setelan:</b> ${snap.settings.dailyVideoTarget} Video/Hari • Jam ${snap.settings.defaultUploadHour}\n\n` +
-      `<i>Anda adalah CEO-nya, cukup perintahkan apa saja via chat santai (misal: "publish video selanjutnya sekarang", "ubah jadwal jam 20:00", atau "target 2 video sehari"):</i>`;
+      `<i>Ketik perintah peran seperti <code>it: status server</code>, <code>manajer: cek stok</code>, atau <code>/office</code> untuk memantau semua ruangan.</i>`;
 
     const keyboard = {
       keyboard: [
-        [{ text: "📊 Cek Status" }, { text: "🎬 Video Siap Review" }],
+        [{ text: "🏢 Kantor Virtual" }, { text: "📊 Cek Status" }],
         [{ text: "⚡ Publish Konten Selanjutnya Sekarang" }],
-        [{ text: "💡 Rekomendasi Ide Konten" }],
+        [{ text: "🎬 Video Siap Review" }, { text: "💡 Rekomendasi Ide Konten" }],
       ],
       resize_keyboard: true,
     };
