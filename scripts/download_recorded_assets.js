@@ -306,4 +306,5 @@ if (require.main === module) {
 module.exports = {
   runDownloadPipeline,
   parseRecording,
+  getMappedProfiles,
 };

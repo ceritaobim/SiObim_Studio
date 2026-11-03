@@ -1,5 +1,5 @@
 /**
- * CeritaObim Studio — Auto-Download Video Google Flow (10 Profil Chrome)
+ * CeritaObim Studio — Auto-Download Video Google Flow (12 Profil Chrome)
  * 
  * Alur Kerja:
  * 1. Membaca profil Chrome dari Local State (Profil 1 s.d. 10).

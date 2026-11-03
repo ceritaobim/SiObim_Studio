@@ -186,7 +186,7 @@ async function startWatcher() {
   console.log("\n💡 Cara Kerja Otomatis:");
   console.log("   1. Unduh video dari Google Flow ke folder Downloads (otomatis bernama pzxc_...).");
   console.log("   2. Script ini langsung mendeteksi file pzxc_*, memindahkannya, dan membersihkan namanya.");
-  console.log("   3. Merakit video master (00Final.mp4) bersama narasi audio ElevenLabs.");
+  console.log("   3. Merakit video master (00Final.mp4) bersama narasi audio Gemini AI TTS.");
   console.log("   4. Mengunggah langsung ke folder Google Drive konten tersebut secara otomatis!");
   console.log("\nTekan Ctrl+C untuk menghentikan pemantau.\n");
 

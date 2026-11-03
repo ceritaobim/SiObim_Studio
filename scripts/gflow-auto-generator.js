@@ -482,7 +482,7 @@ async function main() {
   console.log(`🎯 Konten Prioritas: [${allTasks[0].contentCode}] "${allTasks[0].title}"`);
 
   console.log('\nPILIH MODE GENERATOR:');
-  console.log('  [1] Generate Otomatis dengan 10 Profil Bergantian (4 klip per profil)');
+  console.log(`  [1] Generate Otomatis dengan ${profiles.length} Profil Bergantian (4 klip per profil)`);
   console.log('  [2] Generate 1 Klip Saja untuk Uji Coba (Scene 1)');
   console.log('  [3] Tentukan Jumlah Klip per Profil Manual');
   console.log('');

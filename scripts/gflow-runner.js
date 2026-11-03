@@ -121,9 +121,9 @@ async function main() {
   } else {
     // Tanyakan interaktif jika tidak ada flag
     console.log('PILIH MODE ROTASI:');
-    console.log('  [1] Jalankan SEMUA 10 Profil Bergantian (Rekomendasi Produksi)');
+    console.log(`  [1] Jalankan SEMUA ${profiles.length} Profil Bergantian (Rekomendasi Produksi)`);
     console.log('  [2] Uji Coba 3 Profil Saja (Profil 1, 2, 3)');
-    console.log('  [3] Buka Satu Profil Tertentu Saja (Pilih Nomor 1-10)');
+    console.log(`  [3] Buka Satu Profil Tertentu Saja (Pilih Nomor 1-${profiles.length})`);
     console.log('');
     const choice = await askQuestion('Masukkan pilihan Anda [1/2/3] (Default: 1): ');
 
@@ -135,7 +135,7 @@ async function main() {
       if (found) {
         targetProfiles = [found];
       } else {
-        console.log('⚠️ Nomor profil tidak valid. Menjalankan semua 10 profil.');
+        console.log(`⚠️ Nomor profil tidak valid. Menjalankan semua ${profiles.length} profil.`);
         targetProfiles = profiles;
       }
     } else {

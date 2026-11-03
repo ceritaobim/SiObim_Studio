@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { execSync } = require('child_process');
-const { runDownloadPipeline } = require('./download_recorded_assets');
+const { runDownloadPipeline, getMappedProfiles } = require('./download_recorded_assets');
 
 const SESSION_FILE = path.resolve(__dirname, '..', 'storage', 'macro', 'active_production_session.json');
 
@@ -76,11 +76,14 @@ async function main() {
   console.log('\n===============================================================================');
   console.log('       🚀 CERITAOBIM STUDIO — START ALL (PIPELINE OTOMASI PENUH)              ');
   console.log('===============================================================================');
+  const allProfiles = getMappedProfiles();
+  const profileCountLabel = allProfiles.length > 0 ? `${allProfiles.length} Profil` : '12 Profil';
+
   console.log(' Pipeline ini akan menjalankan 5 TAHAP PRODUKSI UTAMA secara berurutan:');
-  console.log('   [Tahap 1/5] GENERATE VIDEO  -> Batch prompting 10 profil Google Flow');
+  console.log(`   [Tahap 1/5] GENERATE VIDEO  -> Batch prompting ${profileCountLabel} Google Flow`);
   console.log('   [Tahap 2/5] DOWNLOAD VIDEO  -> Unduh otomatis 720p berdasar rekaman klik kanan');
   console.log('   [Tahap 3/5] MIGRASI KLIP    -> Pindahkan pzxc_*, bersihkan nama & rakit FFmpeg');
-  console.log('   [Tahap 4/5] CEK KREDIT      -> 100% otomatis catat sisa kredit 10 akun');
+  console.log(`   [Tahap 4/5] CEK KREDIT      -> 100% otomatis catat sisa kredit ${profileCountLabel}`);
   console.log('   [Tahap 5/5] CLOUD & PURGE   -> Auto-Schedule Buffer & Pembersihan Disk Laptop');
   console.log('===============================================================================\n');
 
@@ -101,7 +104,7 @@ async function main() {
   // TAHAP 1: GENERATE VIDEO
   // ---------------------------------------------------------------------------
   console.log('\n===============================================================================');
-  console.log(' 🎬 [TAHAP 1/4] MEMULAI GENERATE VIDEO DI 10 PROFIL GOOGLE FLOW');
+  console.log(` 🎬 [TAHAP 1/4] MEMULAI GENERATE VIDEO DI ${profileCountLabel.toUpperCase()} GOOGLE FLOW`);
   console.log('===============================================================================');
   
   // Simpan session target download berdasarkan antrean batch aktual
@@ -113,7 +116,8 @@ async function main() {
     chunkSize: chunkSize,
     profileSceneCounts: {},
   };
-  for (let p = 1; p <= 10; p++) {
+  const maxProf = Math.max(allProfiles.length, 12);
+  for (let p = 1; p <= maxProf; p++) {
     const b = initialBatches[p - 1];
     sessionData.profileSceneCounts[String(p)] = b ? b.sceneCount : 0;
   }
@@ -137,7 +141,7 @@ async function main() {
   await waitForUserOrTimeout(180, '⏱️  Menunggu proses render selesai di Google Flow');
 
   console.log('\n===============================================================================');
-  console.log(' ⬇️  [TAHAP 2/4] MEMULAI DOWNLOAD OTOMATIS VIDEO SELESAI (10 PROFIL)');
+  console.log(` ⬇️  [TAHAP 2/4] MEMULAI DOWNLOAD OTOMATIS VIDEO SELESAI (${profileCountLabel.toUpperCase()})`);
   console.log('===============================================================================');
 
   try {
@@ -175,7 +179,7 @@ async function main() {
   // TAHAP 4: CEK KREDIT AKHIR
   // ---------------------------------------------------------------------------
   console.log('\n===============================================================================');
-  console.log(' 💳 [TAHAP 4/5] MEMULAI CEK SISA KREDIT 10 AKUN (GOOGLE ONE)');
+  console.log(` 💳 [TAHAP 4/5] MEMULAI CEK SISA KREDIT ${profileCountLabel.toUpperCase()} (GOOGLE ONE)`);
   console.log('===============================================================================');
 
   try {

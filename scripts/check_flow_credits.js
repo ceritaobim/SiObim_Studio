@@ -160,7 +160,7 @@ function saveAccounts(accounts) {
 
 async function main() {
   console.log('\n================================================================');
-  console.log('   🔍 CERITAOBIM STUDIO — PEMERIKSA KREDIT OTOMATIS (10 PROFIL)');
+  console.log('   🔍 CERITAOBIM STUDIO — PEMERIKSA KREDIT OTOMATIS (12 PROFIL)');
   console.log('================================================================');
   console.log('Metode: Akses langsung ke Histori Kredit Google One (100% Otomatis)');
   console.log('Tidak memerlukan klik manual atau input keyboard dari Anda.');
@@ -240,7 +240,7 @@ async function main() {
   // Cetak Rekapitulasi
   const allUpdated = Array.from(accountsMap.values()).sort((a, b) => a.index - b.index);
   console.log('\n================================================================');
-  console.log('   📊 REKAPITULASI KREDIT 10 PROFIL GOOGLE FLOW');
+  console.log('   📊 REKAPITULASI KREDIT 12 PROFIL GOOGLE FLOW');
   console.log('================================================================');
   console.log(' No | Profil & Email               | Sisa Kredit | Visual Bar   | Status');
   console.log('----+-------------------------------+-------------+--------------+--------');

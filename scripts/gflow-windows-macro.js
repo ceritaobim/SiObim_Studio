@@ -366,7 +366,7 @@ async function main() {
   ensureDirs();
 
   console.log('\n================================================================');
-  console.log('   🚀 CERITAOBIM STUDIO — ROBOT MAKRO BATCH PROMPTING 10 AKUN');
+  console.log('   🚀 CERITAOBIM STUDIO — ROBOT MAKRO BATCH PROMPTING 12 AKUN');
   console.log('================================================================\n');
 
   // Baca daftar profil Chrome
