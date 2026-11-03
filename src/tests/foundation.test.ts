@@ -49,7 +49,6 @@ describe("Milestone 0 — Foundation & Provider Status Honesty", () => {
     const hrefs = PRIMARY_NAV_ITEMS.map((item) => item.href);
     expect(hrefs).toEqual([
       "/",
-      "/office",
       "/content",
       "/production",
       "/assets",

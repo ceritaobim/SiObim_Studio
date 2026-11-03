@@ -15,13 +15,6 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     milestoneTag: "Home",
   },
   {
-    label: "Kantor Virtual",
-    shortLabel: "Kantor",
-    href: "/office",
-    description: "Markas agensi virtual Si Obim: Manajer, Produser, Audio, Kreatif & IT",
-    milestoneTag: "Agency",
-  },
-  {
     label: "Content Plan",
     shortLabel: "Planning",
     href: "/content",
