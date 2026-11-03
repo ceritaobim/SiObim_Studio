@@ -325,38 +325,21 @@ async function processBatchTask(prof, batch, batchIndex, totalBatches) {
   autoPasteTagAndSubmit();
   console.log(`🚀 Prompt batch untuk ${batch.sceneCount} video berhasil dikirimkan ke Google Flow!`);
 
-  // 4. Pantau respon Flow & Auto-Approve secara aktif (Polling setiap 5 detik mulai detik 30 s/d 95)
-  console.log(`\n⏳ [LANGKAH 4/4] Memantau dialog konfirmasi kredit Google Flow untuk ${batch.sceneCount} video...`);
-  console.log('   (Sistem akan mengecek & mencoba klik Approve secara berkala mulai detik 30,');
-  console.log('    atau Anda dapat menekan [ENTER] kapan saja jika tombol Approve sudah muncul di layar)');
+  // 4. Klik Approve Sekali & Langsung Pindah ke Profil Berikutnya
+  console.log(`\n⏳ [LANGKAH 4/4] Menunggu AI Flow menampilkan tombol konfirmasi kredit (~12 detik)...`);
+  console.log(`   (Tekan [ENTER] jika tombol Approve sudah muncul lebih cepat di layar Anda)`);
 
-  const totalTimeoutSeconds = 95;
-  const pollStartSecond = 30;
-
-  for (let sec = 0; sec < totalTimeoutSeconds; sec += 5) {
-    const remaining = totalTimeoutSeconds - sec;
-    if (sec >= pollStartSecond) {
-      process.stdout.write(`\r⏱️  [Detik ${sec}/${totalTimeoutSeconds}] Mengklik zona tombol Approve/Always approve... `);
-      autoClickApprove();
-    } else {
-      process.stdout.write(`\r⏱️  [Detik ${sec}/${totalTimeoutSeconds}] Menunggu AI Flow merespons prompt (${remaining}s tersisa)... `);
-    }
-
-    const action = await waitForUserOrTimeout(5, '');
-    if (action === 'enter') {
-      console.log('\n⚡ [USER TRIGGER] Tombol ENTER ditekan, langsung mengklik Approve...');
-      autoClickApprove();
-      break;
-    }
+  const userAction = await waitForUserOrTimeout(12, '⏱️  Menunggu tombol Approve muncul di Google Flow');
+  if (userAction === 'enter') {
+    console.log('\n⚡ [USER TRIGGER] Tombol ENTER ditekan, langsung mengklik Approve...');
   }
 
-  // Klik konfirmasi cadangan sekali lagi setelah jeda 3 detik
-  await delay(3000);
+  console.log(`\n🖱️  Mengklik tombol Approve / Always approve (1x)...`);
   autoClickApprove();
-  console.log(`\n✅ Tombol konfirmasi kredit berhasil diklik! Render ${batch.sceneCount} video berjalan di cloud Google Flow.`);
   await delay(2000);
 
-  console.log(`\n🎉 PROFIL ${prof.index} SELESAI DI-PROMPT! Google Flow sedang merender ${batch.sceneCount} video di akun ini.`);
+  console.log(`✅ Tombol konfirmasi kredit berhasil diklik! Render ${batch.sceneCount} video berjalan di cloud Google Flow.`);
+  console.log(`🎉 PROFIL ${prof.index} SELESAI DI-PROMPT! Google Flow sedang merender ${batch.sceneCount} video di akun ini.`);
   console.log(`🌐 Jendela Profil ${prof.index} TETAP AKTIF TERBUKA di taskbar.`);
   console.log(`➡️  LANGSUNG MELANJUTKAN KE PROFIL BERIKUTNYA...\n`);
   return true;
@@ -586,7 +569,7 @@ async function main() {
       console.log('----------------------------------------------------------------');
       console.log(`➡️  Mempersiapkan membuka Profil ${targetProfiles[pIdx + 1].index} (${targetProfiles[pIdx + 1].name})...`);
       console.log('----------------------------------------------------------------');
-      await delay(5000);
+      await delay(2000);
     }
   }
 
