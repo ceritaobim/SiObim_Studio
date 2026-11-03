@@ -162,10 +162,10 @@ function generateBatches(chunkSize = 3, targetWeek = null) {
             `  • Durasi Video          : ${dur} detik (9:16 vertikal) • [${roleLabel}]`,
             `  • Properti Kertas Topik : ${topicProps}`,
             `  • Pose & Karakter Obim  : ${stance}`,
-            `  • Visual Origami Action : [${outputLabel}] ${visualAction}`,
+            `  • Visual Origami Action : [${outputLabel}] ${visualAction}. (PENTING: Karakter Obim TIDAK BOLEH berbicara atau menggerakkan bibir/mulut! Mulut tertutup rapat, ekspresi murni dari gerakan mata dan tubuh. NO mouth movement, NO lip sync, NO dialogue).`,
             `  • Lingkungan Diorama    : ${environment}`,
-            `  • Narasi Suara          : ${sc.narrationText}`,
-            `  • KINETIC HOOK SPECS   : KLIP VIDEO vertikal 9:16 aksi kinetik stop-motion kertas origami langsung di detik pertama (in-media-res). DILARANG menggunakan papan nama/banner/teks kaku. NO subtitles, NO text on screen.`,
+            `  • Konteks Topik Adegan  : ${sc.narrationText}`,
+            `  • KINETIC HOOK SPECS   : KLIP VIDEO vertikal 9:16 aksi kinetik stop-motion kertas origami langsung di detik pertama (in-media-res). DILARANG menggunakan papan nama/banner/teks kaku. NO subtitles, NO text on screen, NO speech.`,
           ].join('\n');
         }
 
@@ -175,9 +175,9 @@ function generateBatches(chunkSize = 3, targetWeek = null) {
           `  • Durasi Video          : ${dur} detik (9:16 vertikal) • [${roleLabel}]`,
           `  • Properti Kertas Topik : ${topicProps}`,
           `  • Pose & Karakter Obim  : ${stance}`,
-          `  • Visual Origami Action : [${outputLabel}] ${visualAction} (100% handmade folded matte origami paper stop-motion, 9:16 vertical, NO subtitles, NO text on screen).`,
+          `  • Visual Origami Action : [${outputLabel}] ${visualAction} (100% handmade folded matte origami paper stop-motion, 9:16 vertical, NO subtitles, NO text on screen. PENTING: Karakter DILARANG berbicara/lip sync, mulut tertutup rapat, NO mouth movement, NO speech).`,
           `  • Lingkungan Diorama    : ${environment}`,
-          `  • Narasi Suara          : ${sc.narrationText}`,
+          `  • Konteks Topik Adegan  : ${sc.narrationText}`,
         ].join('\n');
       });
 
@@ -219,8 +219,10 @@ function generateBatches(chunkSize = 3, targetWeek = null) {
         `- Aturan Bagian Lain: 100% dunia lipatan kertas origami stop-motion murni (handmade folded matte paper). DILARANG menampilkan subtitle, teks di layar, huruf, watermark, banner, atau manusia/objek realistis (NO subtitles, NO text on screen).`,
         `- Kontinuitas: Jaga konsistensi pakaian karakter Obim, proporsi lipatan kertas, dan pencahayaan antar bagian secara berurutan.`,
         ``,
-        `[ATURAN AUDIO & EFEK SUARA (SFX) WAJIB]`,
-        `- NO BGM, NO SPEECH: DILARANG ada background music atau suara bicara/kata. Hanya efek suara nyata kontekstual singkat (1-2 detik) di tengah dan senyap di awal/akhir adegan agar transisi mulus.`,
+        `[ATURAN AUDIO & EFEK SUARA (SFX) WAJIB — DILARANG BICARA / BERSUARA]`,
+        `- ZERO SPEECH, ZERO LIP SYNC: DILARANG KERAS karakter berbicara, membuka mulut, menggerakkan bibir, bernyanyi, bergumam, atau mengeluarkan suara vokal/kata apa pun! Mulut karakter WAJIB selalu terkatup rapat (CLOSED MOUTH). Dubbing narasi sudah kami sediakan secara terpisah!`,
+        `- NO BGM: DILARANG ada background music atau instrumen pengiring latar terus-menerus.`,
+        `- HANYA EFEK SUARA DIEGETIK (SFX): Hanya boleh ada efek suara benda nyata kontekstual pendek (1-2 detik) di pertengahan adegan (misal bunyi derit kertas terlipat, ketukan kayu, atau letupan pop halus), dan WAJIB hening di awal dan akhir klip agar transisi mulus.`,
         ``,
         `[DAFTAR ${chunk.length} BAGIAN SCENE YANG HARUS DIKERJAKAN PADA SESI INI]`,
         ...sceneDescriptions,
