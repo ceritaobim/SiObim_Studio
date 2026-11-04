@@ -8,6 +8,7 @@ param(
   [string]$SelectFileDialogFile = "",
   [switch]$ClickIAgree,
   [switch]$ClickEmptySpace,
+  [switch]$PasteAndTagObim,
   [switch]$PasteTagAndSubmit,
   [switch]$ClickApprove,
   [switch]$ExtractGoogleOneCredit
@@ -239,6 +240,45 @@ if ($ClickEmptySpace) {
   [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
   Start-Sleep -Milliseconds 200
   Write-Host "SUCCESS: Dismissed panel"
+  exit 0
+}
+
+# 7b. Paste Prompt + Ketik @obim.jpg + Kunci Chip (TANPA SUBMIT)
+if ($PasteAndTagObim) {
+  $promptX = [int]($screenWidth * 0.860)
+  $promptY = [int]($screenHeight * 0.800)
+
+  # Fokuskan kursor ke dalam textarea
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($promptX, $promptY)
+  Start-Sleep -Milliseconds 300
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 350
+
+  # Bersihkan teks lama & tempel teks baru
+  $ws.SendKeys('^a')
+  Start-Sleep -Milliseconds 200
+  $ws.SendKeys('^v')
+  Start-Sleep -Milliseconds 700
+
+  # Pastikan kursor selalu di akhir kalimat
+  $ws.SendKeys('^{END}')
+  Start-Sleep -Milliseconds 300
+
+  # Spasi + @
+  $ws.SendKeys(' ')
+  Start-Sleep -Milliseconds 200
+  $ws.SendKeys('@')
+  Start-Sleep -Milliseconds 800
+
+  # Ketik obim.jpg & Enter chip
+  $ws.SendKeys('obim.jpg')
+  Start-Sleep -Milliseconds 600
+  $ws.SendKeys('{ENTER}')
+  Start-Sleep -Milliseconds 500
+
+  Write-Host "SUCCESS: Pasted prompt & locked @obim.jpg chip WITHOUT submitting"
   exit 0
 }
 
