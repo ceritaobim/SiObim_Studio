@@ -271,16 +271,29 @@ if ($ClickEmptySpace) {
 # 7b. Paste Prompt + Ketik @obim.jpg + Kunci Chip (TANPA SUBMIT)
 # Menggunakan teknik klik tombol kirim untuk memfokuskan teks area
 if ($PasteAndTagObim) {
-  $btnX = [int]($screenWidth * 0.944)
-  $btnY = [int]($screenHeight * 0.888)
+  # Koordinat terkalibrasi dari screenshot pengguna:
+  # Tombol Panah Kirim (Submit Arrow ->): X = 97.2%, Y = 89.6%
+  # Kolom Teks Chatbox ("What do you want to create?"): X = 84.5%, Y = 89.6%
+  $btnX = [int]($screenWidth * 0.972)
+  $btnY = [int]($screenHeight * 0.896)
+  $promptX = [int]($screenWidth * 0.845)
+  $promptY = [int]($screenHeight * 0.896)
 
-  # 1. Klik tombol kirim untuk masuk dan memfokuskan kursor ke dalam textarea
+  # 1. Klik tombol panah kirim (Submit Arrow) di ujung kanan untuk mengaktifkan teks area
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
-  Start-Sleep -Milliseconds 300
+  Start-Sleep -Milliseconds 250
   [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
   Start-Sleep -Milliseconds 80
   [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 400
+  Start-Sleep -Milliseconds 200
+
+  # Klik juga langsung di tengah chatbox sebagai pengunci fokus ganda
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($promptX, $promptY)
+  Start-Sleep -Milliseconds 150
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 350
 
   # 2. Select All (Ctrl+A) & Paste Prompt (Ctrl+V)
   $ws.SendKeys('^a')
@@ -304,22 +317,32 @@ if ($PasteAndTagObim) {
   $ws.SendKeys('{ENTER}')
   Start-Sleep -Milliseconds 500
 
-  Write-Host "SUCCESS: Focused via submit button, pasted prompt & locked @obim.jpg chip WITHOUT submitting"
+  Write-Host "SUCCESS: Focused via submit button ($btnX, $btnY) & chatbox ($promptX, $promptY), pasted prompt & locked @obim.jpg chip WITHOUT submitting"
   exit 0
 }
 
 # 8. Paste Prompt + Ketik @obim.jpg + Kunci Chip + Klik Submit Arrow (FULL SOP)
 if ($PasteTagAndSubmit) {
-  $btnX = [int]($screenWidth * 0.944)
-  $btnY = [int]($screenHeight * 0.888)
+  $btnX = [int]($screenWidth * 0.972)
+  $btnY = [int]($screenHeight * 0.896)
+  $promptX = [int]($screenWidth * 0.845)
+  $promptY = [int]($screenHeight * 0.896)
 
-  # 1. Klik tombol kirim untuk masuk dan memfokuskan kursor ke dalam textarea
+  # 1. Klik tombol panah kirim (Submit Arrow) di ujung kanan untuk mengaktifkan teks area
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
-  Start-Sleep -Milliseconds 300
+  Start-Sleep -Milliseconds 250
   [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
   Start-Sleep -Milliseconds 80
   [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 400
+  Start-Sleep -Milliseconds 200
+
+  # Klik juga langsung di tengah chatbox sebagai pengunci fokus ganda
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($promptX, $promptY)
+  Start-Sleep -Milliseconds 150
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 350
 
   # 2. Select All (Ctrl+A) & Paste Prompt (Ctrl+V)
   $ws.SendKeys('^a')
@@ -343,7 +366,7 @@ if ($PasteTagAndSubmit) {
   $ws.SendKeys('{ENTER}')
   Start-Sleep -Milliseconds 600
 
-  # 6. Klik tombol panah kirim (Submit Arrow) untuk mulai proses render
+  # 6. Klik tombol panah kirim (Submit Arrow ->) untuk mulai proses render
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
   Start-Sleep -Milliseconds 200
   [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
@@ -360,8 +383,8 @@ if ($PasteTagAndSubmit) {
 
 # 8b. Hanya Klik Tombol Panah Kirim (Submit Arrow)
 if ($ClickSubmitArrow) {
-  $btnX = [int]($screenWidth * 0.944)
-  $btnY = [int]($screenHeight * 0.888)
+  $btnX = [int]($screenWidth * 0.972)
+  $btnY = [int]($screenHeight * 0.896)
 
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
   Start-Sleep -Milliseconds 200

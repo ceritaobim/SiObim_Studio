@@ -212,20 +212,15 @@ async function main() {
   if (step === 4) {
     console.log(`📋 [LANGKAH 4] Menyalin prompt batch, paste, dan kunci chip @obim.jpg...`);
 
-    // Jaga-jaga jika layar masih di mode editor gambar: kirim ESC untuk keluar ke kanvas utama
-    console.log(`   Memastikan layar berada di kanvas utama (menekan ESC untuk menutup mode preview jika ada)...`);
-    runClickTool('-ClickEmptySpace');
-    await delay(1000);
-
     const batch = getSampleBatch();
     console.log(`   Menyalin prompt untuk: [${batch.contentCode}] "${batch.title}"`);
     setClipboardText(batch.promptText);
-    await delay(800);
+    await delay(600);
 
-    console.log(`   1. Klik tombol kirim untuk fokus ke dalam textarea`);
+    console.log(`   1. Klik tombol panah kirim (Submit Arrow -> di X=97.2%, Y=89.6%) & chatbox (X=84.5%)`);
     console.log(`   2. Ctrl+A & Ctrl+V (paste prompt)`);
     console.log(`   3. Ctrl+End ke ujung teks`);
-    console.log(`   4. Ketik spasi + @ + obim.jpg + Enter -> chip @obim.jpg`);
+    console.log(`   4. Ketik spasi + @ + obim.jpg + Enter -> kunci chip @obim.jpg`);
     const res = runClickTool('-PasteAndTagObim');
     console.log(`   ${res}`);
 
