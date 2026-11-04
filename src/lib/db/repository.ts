@@ -4059,6 +4059,30 @@ export async function runContentVideoAssembly(
       options
     );
 
+    // Auto-dispatch newly assembled final video to Telegram Bot if configured
+    const tgToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    const tgChatId = (process.env.TELEGRAM_ALLOWED_USER_ID || "").trim();
+    if (tgToken && tgChatId && assemblyResult.outputBuffer && assemblyResult.outputBuffer.byteLength > 0) {
+      import("@/features/telegram/telegram-client")
+        .then(async ({ TelegramClient }) => {
+          const client = new TelegramClient(tgToken);
+          const categoryTag = (content.category || "FaktaUnik").replace(/[^a-zA-Z0-9]/g, "");
+          const hookLine = content.hook ? `\n🎯 <i>"${content.hook}"</i>` : "";
+          const caption = `🎬 <b>[${content.contentCode}] ${content.title}</b>\n📁 <i>Kategori: ${content.category || "Fakta Unik"}</i>${hookLine}\n\n✨ <b>Video Master 9:16 Siap Tayang!</b>\n\n🔖 #CeritaObim #Origami3D #${categoryTag} #Shorts #Reels #TikTok`;
+          try {
+            await client.sendVideoFile(tgChatId, assemblyResult.outputBuffer, finalFilename, {
+              caption,
+              parse_mode: "HTML",
+              supports_streaming: true,
+            });
+            console.log(`[Telegram Auto-Dispatch] Successfully delivered ${finalFilename} to Chat ID ${tgChatId}`);
+          } catch (tgErr) {
+            console.warn(`[Telegram Auto-Dispatch Warning] Could not send video directly:`, tgErr);
+          }
+        })
+        .catch((e) => console.warn("[Telegram Auto-Dispatch Import Error]", e));
+    }
+
     return {
       job: succeededJob,
       finalVideoAsset,

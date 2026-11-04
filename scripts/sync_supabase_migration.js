@@ -236,6 +236,104 @@ const DESCRIPTIVE_PATTERNS = [
   { regex: /correcting.*map|map.*time/i, code: "CO-2026-012", scene: 2 },
 ];
 
+/**
+ * Mengirim berkas video final master secara otomatis ke Bot Telegram
+ */
+async function sendFinalVideoToTelegram({ token, chatId, item, videoPath, cloudUrl, videoBuffer }) {
+  if (!token || !chatId) {
+    console.log('   ℹ️ [Telegram] Token bot atau Chat ID belum diset di .env.local, lewati notifikasi.');
+    return false;
+  }
+
+  const filename = path.basename(videoPath);
+  console.log(`   📱 [Telegram] Mengirim video final master ${filename} ke Bot Telegram...`);
+
+  // Bangun caption HTML menarik & rapi (dibawah 1024 karakter)
+  const category = item.category || 'Fakta Unik';
+  const topic = item.topic || 'Sains Populer';
+  const hookText = item.hook ? `\n🎯 <i>"${item.hook}"</i>` : '';
+  const ctaText = item.cta ? `\n📢 <i>${item.cta}</i>` : '';
+  const cloudLink = cloudUrl ? `\n☁️ <a href="${cloudUrl}">Tonton / Unduh via Supabase Storage</a>` : '';
+
+  const cleanCategoryTag = category.replace(/[^a-zA-Z0-9]/g, '');
+  const cleanTopicTag = topic.replace(/[^a-zA-Z0-9]/g, '');
+
+  const caption = [
+    `🎬 <b>[${item.content_code}] ${item.title}</b>`,
+    `📁 <i>Kategori: ${category} | Topik: ${topic}</i>${hookText}${ctaText}`,
+    '',
+    `✨ <b>Video Master 9:16 Siap Tayang!</b>`,
+    `Rakitan otomatis selesai, klip lokal dibersihkan (Zero-Disk).${cloudLink}`,
+    '',
+    `🔖 #CeritaObim #Origami3D #${cleanCategoryTag} #${cleanTopicTag} #FaktaUnik #Shorts #Reels #TikTok`,
+  ].join('\n');
+
+  try {
+    const buffer = videoBuffer || (fs.existsSync(videoPath) ? fs.readFileSync(videoPath) : null);
+
+    // 1. Prioritas Utama: Upload file video MP4 langsung jika <= 50MB (Batas Telegram Bot API)
+    if (buffer && buffer.byteLength <= 50 * 1024 * 1024) {
+      const formData = new FormData();
+      formData.append('chat_id', String(chatId));
+      formData.append('video', new Blob([buffer], { type: 'video/mp4' }), filename);
+      formData.append('caption', caption);
+      formData.append('parse_mode', 'HTML');
+      formData.append('supports_streaming', 'true');
+
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => null);
+      if (data && data.ok) {
+        console.log(`   ✅ [Telegram] Video file ${filename} BERHASIL terkirim ke Telegram (Chat ID: ${chatId})!`);
+        return true;
+      } else {
+        console.warn(`   ⚠️ [Telegram sendVideo file gagal]: ${data ? data.description : 'Unknown error'}. Mencoba fallback...`);
+      }
+    }
+
+    // 2. Fallback: Kirim video via URL streaming Cloud jika file > 50MB atau upload buffer gagal
+    if (cloudUrl) {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          video: cloudUrl,
+          caption: caption,
+          parse_mode: 'HTML',
+          supports_streaming: true,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (data && data.ok) {
+        console.log(`   ✅ [Telegram] Video berhasil dikirim ke Telegram via Cloud Storage URL!`);
+        return true;
+      }
+    }
+
+    // 3. Fallback Terakhir: Kirim Pesan Teks
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: caption,
+        parse_mode: 'HTML',
+        disable_web_page_preview: false,
+      }),
+    });
+    console.log(`   ✅ [Telegram] Pesan notifikasi teks berhasil dikirim ke Telegram!`);
+    return true;
+  } catch (err) {
+    console.warn(`   ⚠️ [Telegram Error] Gagal mengirim ke Telegram (non-blocking): ${err.message}`);
+    return false;
+  }
+}
+
 async function runSupabaseMigration() {
   console.log('\n================================================================');
   console.log('   📦 CERITAOBIM STUDIO — MIGRASI & SINKRONISASI DATABASE');
@@ -257,7 +355,7 @@ async function runSupabaseMigration() {
   console.log('📡 Mengambil daftar konten dan adegan dari Database Supabase...');
   const { data: contentItems, error: contentErr } = await supabase
     .from('content_items')
-    .select('id, owner_id, content_code, title, category, topic, narration');
+    .select('id, owner_id, content_code, title, category, topic, narration, hook, cta');
 
   if (contentErr) {
     throw new Error('Gagal mengambil content_items dari Supabase: ' + contentErr.message);
@@ -759,6 +857,34 @@ async function runSupabaseMigration() {
           });
           console.log(`   ✨ Master 00Final.mp4 BERHASIL DIRAKIT: ${masterVideoPath}`);
 
+          // OTOMATIS KIRIM KE TELEGRAM BOT (Setiap video baru dirakit langsung dikirim ke HP)
+          console.log(`   🚀 [Auto-Pilot Telegram] Mengirim video final rakitan langsung ke Bot Telegram...`);
+          const tgSent = await sendFinalVideoToTelegram({
+            token: env.TELEGRAM_BOT_TOKEN,
+            chatId: env.TELEGRAM_ALLOWED_USER_ID,
+            item,
+            videoPath: masterVideoPath,
+            cloudUrl: masterCloudUrl,
+            videoBuffer: masterBuffer,
+          });
+
+          if (tgSent) {
+            await supabase
+              .from('assets')
+              .update({
+                metadata: {
+                  source: 'makro_final_assembly',
+                  cloudStoragePath: masterCloudPath,
+                  cloudUrl: masterCloudUrl,
+                  cloudUploaded: Boolean(masterCloudUrl),
+                  assembledAt: new Date().toISOString(),
+                  telegramSent: true,
+                  telegramSentAt: new Date().toISOString(),
+                },
+              })
+              .eq('id', masterAssetId);
+          }
+
           // 3. HAPUS BAGIAN-BAGIAN VIDEO DARI LAPTOP SETELAH FINAL TERUPLOAD KE CLOUD (Zero-Disk Bloat)
           console.log(`   🧹 [Zero-Disk Cleanup] Membersihkan klip bagian lokal ${item.content_code} dari KLIP_BERSIH...`);
           let deletedCount = 0;
@@ -892,11 +1018,122 @@ function assembleFinalVideo(item, scenes, clipAssets, voiceAsset, outputPath) {
   }
 }
 
-if (require.main === module) {
-  runSupabaseMigration().catch((err) => {
-    console.error('❌ Gagal menjalankan migrasi:', err.message);
-    process.exit(1);
-  });
+/**
+ * Mengirim video final yang sudah dirakit ke Telegram (bisa 1 video spesifik atau semua)
+ */
+async function sendReadyVideosToTelegram(targetCode = 'all') {
+  console.log('\n================================================================');
+  console.log('   📱 CERITAOBIM STUDIO — TELEGRAM MASTER VIDEO DISPATCHER');
+  console.log('================================================================\n');
+
+  const env = loadEnv();
+  const token = env.TELEGRAM_BOT_TOKEN;
+  const chatId = env.TELEGRAM_ALLOWED_USER_ID;
+
+  if (!token || !chatId) {
+    console.error('❌ TELEGRAM_BOT_TOKEN atau TELEGRAM_ALLOWED_USER_ID belum diset di .env.local');
+    return;
+  }
+
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  let query = supabase
+    .from('content_items')
+    .select('id, content_code, title, category, topic, hook, cta, content_status')
+    .order('content_code', { ascending: true });
+
+  if (targetCode && targetCode.toLowerCase() !== 'all') {
+    query = query.ilike('content_code', `%${targetCode}%`);
+  } else {
+    query = query.eq('content_status', 'ready_for_publishing');
+  }
+
+  const { data: items, error } = await query;
+  if (error || !items) {
+    console.error('❌ Gagal membaca konten dari Supabase:', error ? error.message : 'No data');
+    return;
+  }
+
+  console.log(`🔍 Ditemukan ${items.length} konten target untuk dikirim ke Telegram.`);
+
+  let successCount = 0;
+  for (const item of items) {
+    // Cari asset final_video untuk konten ini
+    const { data: assets } = await supabase
+      .from('assets')
+      .select('*')
+      .eq('content_id', item.id)
+      .eq('asset_type', 'final_video')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const asset = assets && assets[0];
+    if (!asset) {
+      console.log(`   ⚠️ [${item.content_code}] ${item.title}: Belum memiliki aset video final.`);
+      continue;
+    }
+
+    const cloudUrl = asset.metadata && asset.metadata.cloudUrl;
+    let localPath = asset.storage_path;
+    if (!localPath || !fs.existsSync(localPath)) {
+      const candidates = fs.existsSync(OWNER_MASTER_DIR)
+        ? fs.readdirSync(OWNER_MASTER_DIR).filter((f) => f.includes(item.content_code))
+        : [];
+      if (candidates.length > 0) {
+        localPath = path.join(OWNER_MASTER_DIR, candidates[0]);
+      }
+    }
+
+    console.log(`\n📤 [${item.content_code}] ${item.title}`);
+    const sent = await sendFinalVideoToTelegram({
+      token,
+      chatId,
+      item,
+      videoPath: localPath || `${item.content_code}_00Final.mp4`,
+      cloudUrl,
+      videoBuffer: (localPath && fs.existsSync(localPath)) ? fs.readFileSync(localPath) : null,
+    });
+
+    if (sent) {
+      successCount++;
+      await supabase
+        .from('assets')
+        .update({
+          metadata: {
+            ...(asset.metadata || {}),
+            telegramSent: true,
+            telegramSentAt: new Date().toISOString(),
+          },
+        })
+        .eq('id', asset.id);
+    }
+
+    // Jeda 2 detik antar video agar aman dari limit Telegram API
+    if (items.length > 1) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  console.log(`\n🏁 Selesai. ${successCount}/${items.length} video berhasil terkirim ke Telegram!\n`);
 }
 
-module.exports = { runSupabaseMigration };
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const tgArgIndex = args.indexOf('--send-telegram');
+  if (tgArgIndex !== -1) {
+    const target = args[tgArgIndex + 1] || 'all';
+    sendReadyVideosToTelegram(target).catch((err) => {
+      console.error('❌ Gagal mengirim video ke Telegram:', err.message);
+      process.exit(1);
+    });
+  } else {
+    runSupabaseMigration().catch((err) => {
+      console.error('❌ Gagal menjalankan migrasi:', err.message);
+      process.exit(1);
+    });
+  }
+}
+
+module.exports = { runSupabaseMigration, sendFinalVideoToTelegram, sendReadyVideosToTelegram };
