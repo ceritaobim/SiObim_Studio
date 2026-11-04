@@ -8,6 +8,8 @@ import {
 } from "@/lib/db/repository";
 import { ContentAnalyticsUpdateSchema } from "@/lib/validation/schemas";
 import { DEFAULT_OWNER_ID } from "@/lib/config/env";
+import { extractBufferPostId } from "@/lib/services/analytics-sync-engine";
+import { extractMetricsMap } from "@/lib/integrations/buffer-client";
 
 const TEST_STORE_PATH = path.join(
   process.cwd(),
@@ -107,5 +109,48 @@ describe("Cross-Platform Content Analytics Feature", () => {
       youtube: { views: -10 }, // negative views
     });
     expect(invalid.success).toBe(false);
+  });
+
+  it("extracts Buffer Post ID from various formats accurately", () => {
+    // 1. Direct Buffer post URL
+    expect(
+      extractBufferPostId("https://buffer.com/app/posts/6ae864e2b0da614b55402ef9")
+    ).toBe("6ae864e2b0da614b55402ef9");
+
+    // 2. Metadata note tag
+    expect(
+      extractBufferPostId("Scheduled via AutoPilot. bufferPostId:6ae864e2b0da614b55402ef9 in queue")
+    ).toBe("6ae864e2b0da614b55402ef9");
+
+    // 3. Raw 24 hex char ID
+    expect(extractBufferPostId("6ae864e2b0da614b55402ef9")).toBe(
+      "6ae864e2b0da614b55402ef9"
+    );
+
+    // 4. Invalid or null values
+    expect(extractBufferPostId(null)).toBeNull();
+    expect(extractBufferPostId("")).toBeNull();
+    expect(extractBufferPostId("https://youtube.com/shorts/123")).toBeNull();
+  });
+
+  it("parses Buffer GraphQL post metrics into structured analytics correctly", () => {
+    const rawMetrics = [
+      { label: "Video Views", value: 652 },
+      { label: "Reactions", value: 12 },
+      { label: "Comments", value: 4 },
+      { label: "Shares", value: 2 },
+      { label: "Watch Time (min)", value: 81.03 },
+      { label: "Avg. Watch Time (sec)", value: 7.02 },
+      { label: "Eng. Rate", value: 1.84 },
+    ];
+
+    const parsed = extractMetricsMap(rawMetrics);
+    expect(parsed.views).toBe(652);
+    expect(parsed.likes).toBe(12);
+    expect(parsed.comments).toBe(4);
+    expect(parsed.shares).toBe(2);
+    expect(parsed.watchTimeHours).toBe(1.35);
+    expect(parsed.retentionSeconds).toBe(7.0);
+    expect(parsed.engagementRate).toBe(1.84);
   });
 });

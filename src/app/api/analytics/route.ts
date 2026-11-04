@@ -5,22 +5,25 @@ import {
   listContentItems,
   getAnalyticsSummary,
   upsertContentAnalytics,
+  listOrInitializePublications,
 } from "@/lib/db/repository";
 import { ContentAnalyticsUpdateSchema } from "@/lib/validation/schemas";
 
 export async function GET(request: Request) {
   try {
     const owner = await resolveAuthenticatedOwner(request);
-    const [summary, analytics, items] = await Promise.all([
+    const [summary, analytics, items, publications] = await Promise.all([
       getAnalyticsSummary(owner.ownerId),
       listContentAnalytics(owner.ownerId),
       listContentItems(owner.ownerId),
+      listOrInitializePublications(owner.ownerId),
     ]);
 
     return NextResponse.json({
       summary,
       analytics,
       items,
+      publications,
     });
   } catch (err) {
     const message =

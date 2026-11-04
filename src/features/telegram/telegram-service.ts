@@ -201,6 +201,91 @@ export class TelegramService {
       );
     }
 
+    // 2b. Cek Views & Performa Konten Otomatis dari Buffer
+    const isAnalyticsQuery =
+      /^(cek\s*)?(views?|performa|analitik|hasil\s*upload|analisis|view\s*konten)/i.test(text) ||
+      text.toLowerCase().includes("berapa view") ||
+      text.toLowerCase().includes("cek view");
+
+    if (isAnalyticsQuery) {
+      await this.client.sendChatAction(chatId, "typing");
+      const { syncBufferAnalyticsForPublishedItems } = await import(
+        "@/lib/services/analytics-sync-engine"
+      );
+      const syncResult = await syncBufferAnalyticsForPublishedItems(DEFAULT_OWNER_ID);
+
+      const itemsWithViews = syncResult.updatedPublications
+        .filter((p) => p.metrics.views > 0 || (p.publicUrl && !p.publicUrl.includes("buffer.com")))
+        .slice(0, 5);
+
+      if (itemsWithViews.length === 0) {
+        return this.client.sendMessage(
+          chatId,
+          "📊 <b>Analitik Konten:</b>\nBelum ada data views yang tercatat di Buffer. Sistem akan terus memantau berkala.",
+          { parse_mode: "HTML" }
+        );
+      }
+
+      let replyMsg = `📊 <b>Performa Konten Teratas (Update Otomatis Buffer):</b>\n\n`;
+      itemsWithViews.forEach((it, idx) => {
+        replyMsg += `${idx + 1}. <b>${it.title}</b>\n`;
+        replyMsg += `   👀 <b>${it.metrics.views.toLocaleString()} views</b> • ❤️ ${it.metrics.likes} likes\n`;
+        if (it.publicUrl && !it.publicUrl.includes("buffer.com")) {
+          replyMsg += `   🔗 <a href="${it.publicUrl}">Tonton di ${it.platform.toUpperCase()}</a>\n`;
+        }
+        replyMsg += `\n`;
+      });
+
+      return this.client.sendMessage(chatId, replyMsg, {
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      });
+    }
+
+    // 2c. Kueri Link Publik Video (contoh: "link video 001", "link nasi goreng")
+    const isLinkQuery = /link\s*(video|konten)?/i.test(text);
+    if (isLinkQuery) {
+      const { listOrInitializePublications, listContentItems } = await import(
+        "@/lib/db/repository"
+      );
+      const [pubs, allItems] = await Promise.all([
+        listOrInitializePublications(DEFAULT_OWNER_ID),
+        listContentItems(DEFAULT_OWNER_ID, { includeArchived: true }),
+      ]);
+      const pubWithLink = pubs.filter(
+        (p) => p.externalPostUrl && !p.externalPostUrl.includes("buffer.com")
+      );
+      const codeM = text.match(/(co-2026-)?(\d{3})/i);
+      const targetCode = codeM ? `CO-2026-${codeM[2]}` : null;
+      const targetItem = allItems.find((i) => {
+        if (targetCode && i.contentCode.toLowerCase() === targetCode.toLowerCase())
+          return true;
+        const words = text
+          .toLowerCase()
+          .split(/\s+/)
+          .filter(
+            (w) =>
+              w.length >= 4 &&
+              !["link", "video", "konten", "minta", "tolong", "mana"].includes(w)
+          );
+        return words.length > 0 && words.some((w) => i.title.toLowerCase().includes(w));
+      });
+
+      if (targetItem) {
+        const itemPubs = pubWithLink.filter((p) => p.contentId === targetItem.id);
+        if (itemPubs.length > 0) {
+          let linkMsg = `🔗 <b>Link Publik: "${targetItem.title}"</b>\n\n`;
+          itemPubs.forEach((p) => {
+            linkMsg += `• <b>${p.platform.toUpperCase()}:</b> <a href="${p.externalPostUrl}">${p.externalPostUrl}</a>\n`;
+          });
+          return this.client.sendMessage(chatId, linkMsg, {
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
+          });
+        }
+      }
+    }
+
     // 3. Resolusi Cepat Langsung Format: [Status] || [Judul]
     // Menjawab instan, 100% presisi tanpa embel-embel, tanpa greeting, dan tanpa halusinasi
     const snapshot = await getStudioStoreSnapshot();

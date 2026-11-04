@@ -148,7 +148,7 @@ export class TelegramClient {
 
     const formData = new FormData();
     formData.append("chat_id", String(chatId));
-    formData.append("video", new Blob([videoBuffer], { type: "video/mp4" }), filename);
+    formData.append("video", new Blob([new Uint8Array(videoBuffer)], { type: "video/mp4" }), filename);
     if (options?.caption) formData.append("caption", options.caption);
     if (options?.parse_mode) formData.append("parse_mode", options.parse_mode);
     if (options?.width) formData.append("width", String(options.width));
@@ -161,7 +161,7 @@ export class TelegramClient {
       formData.append("reply_markup", JSON.stringify(options.reply_markup));
     }
     if (options?.thumbBuffer) {
-      formData.append("thumb", new Blob([options.thumbBuffer], { type: "image/jpeg" }), "thumb.jpg");
+      formData.append("thumb", new Blob([new Uint8Array(options.thumbBuffer)], { type: "image/jpeg" }), "thumb.jpg");
     }
 
     const response = await fetch(`${this.baseUrl}/sendVideo`, {
@@ -190,7 +190,7 @@ export class TelegramClient {
 
     const formData = new FormData();
     formData.append("chat_id", String(chatId));
-    formData.append("document", new Blob([fileBuffer], { type: "video/mp4" }), filename);
+    formData.append("document", new Blob([new Uint8Array(fileBuffer)], { type: "video/mp4" }), filename);
     if (options?.caption) formData.append("caption", options.caption);
     if (options?.parse_mode) formData.append("parse_mode", options.parse_mode);
 

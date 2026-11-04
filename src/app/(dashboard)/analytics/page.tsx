@@ -4,16 +4,18 @@ import {
   getAnalyticsSummary,
   listContentAnalytics,
   listContentItems,
+  listOrInitializePublications,
 } from "@/lib/db/repository";
 
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
   const owner = await getAuthorizedOwner();
-  const [summary, analytics, items] = await Promise.all([
+  const [summary, analytics, items, publications] = await Promise.all([
     getAnalyticsSummary(owner.ownerId),
     listContentAnalytics(owner.ownerId),
     listContentItems(owner.ownerId),
+    listOrInitializePublications(owner.ownerId),
   ]);
 
   return (
@@ -22,6 +24,7 @@ export default async function AnalyticsPage() {
         initialSummary={summary}
         initialAnalytics={analytics}
         initialItems={items}
+        initialPublications={publications}
       />
     </div>
   );

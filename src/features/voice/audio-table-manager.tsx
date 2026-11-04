@@ -41,10 +41,18 @@ interface AudioTableManagerProps {
   ttsProviderLabel: string;
 }
 
-async function safeParseJson(res: Response): Promise<any> {
+interface ApiResponsePayload {
+  error?: string;
+  scenes?: SceneRecord[];
+  scene?: SceneRecord;
+  voiceAsset?: AssetRecord;
+  [key: string]: unknown;
+}
+
+async function safeParseJson(res: Response): Promise<ApiResponsePayload> {
   const text = await res.text();
   try {
-    return JSON.parse(text);
+    return JSON.parse(text) as ApiResponsePayload;
   } catch {
     if (res.status === 504) {
       throw new Error(
@@ -169,21 +177,25 @@ export function AudioTableManager({
         throw new Error(data.error || "Gagal men-generate audio.");
       }
 
+      const voiceAsset = data.voiceAsset;
+
       if (data.scenes && Array.isArray(data.scenes)) {
+        const scenesList = data.scenes;
         setScenesByContent((prev) => ({
           ...prev,
-          [item.id]: data.scenes,
+          [item.id]: scenesList,
         }));
       }
 
-      const voiceAsset: AssetRecord = data.voiceAsset;
-      setAssets((prev) => [
-        voiceAsset,
-        ...prev.filter(
-          (a) =>
-            !(a.contentId === item.id && a.assetType === "voice_audio")
-        ),
-      ]);
+      if (voiceAsset) {
+        setAssets((prev) => [
+          voiceAsset,
+          ...prev.filter(
+            (a) =>
+              !(a.contentId === item.id && a.assetType === "voice_audio")
+          ),
+        ]);
+      }
 
       const fixedSec = voiceAsset?.durationMs
         ? Math.round(voiceAsset.durationMs / 1000)
@@ -237,9 +249,10 @@ export function AudioTableManager({
         if (res.ok) {
           const data = await res.json();
           if (data.scenes && Array.isArray(data.scenes) && data.scenes.length > 0) {
+            const scenesList: SceneRecord[] = data.scenes;
             setScenesByContent((prev) => ({
               ...prev,
-              [item.id]: data.scenes,
+              [item.id]: scenesList,
             }));
           }
         }
@@ -284,15 +297,17 @@ export function AudioTableManager({
         throw new Error(data.error || "Gagal menyimpan perubahan timestamp.");
       }
       if (data.scenes && Array.isArray(data.scenes)) {
+        const scenesList: SceneRecord[] = data.scenes;
         setScenesByContent((prev) => ({
           ...prev,
-          [item.id]: data.scenes,
+          [item.id]: scenesList,
         }));
       } else if (data.scene) {
+        const updatedScene: SceneRecord = data.scene;
         setScenesByContent((prev) => ({
           ...prev,
           [item.id]: (prev[item.id] || []).map((s) =>
-            s.id === sc.id ? data.scene : s
+            s.id === sc.id ? updatedScene : s
           ),
         }));
       }
@@ -322,9 +337,10 @@ export function AudioTableManager({
       const data = await safeParseJson(res);
       if (!res.ok) throw new Error(data.error || "Gagal re-transkripsi audio.");
       if (data.scenes && Array.isArray(data.scenes)) {
+        const scenesList: SceneRecord[] = data.scenes;
         setScenesByContent((prev) => ({
           ...prev,
-          [item.id]: data.scenes,
+          [item.id]: scenesList,
         }));
       }
     } catch (e) {
@@ -358,8 +374,9 @@ export function AudioTableManager({
         });
         const data = await safeParseJson(res);
         if (res.ok && data.voiceAsset) {
+          const newAsset = data.voiceAsset;
           setAssets((prev) => [
-            data.voiceAsset,
+            newAsset,
             ...prev.filter(
               (a) =>
                 !(a.contentId === item.id && a.assetType === "voice_audio")
@@ -424,9 +441,10 @@ export function AudioTableManager({
         });
         const data = await safeParseJson(res);
         if (res.ok && data.voiceAsset) {
+          const newAsset = data.voiceAsset;
           done++;
           setAssets((prev) => [
-            data.voiceAsset,
+            newAsset,
             ...prev.filter(
               (a) =>
                 !(a.contentId === item.id && a.assetType === "voice_audio")

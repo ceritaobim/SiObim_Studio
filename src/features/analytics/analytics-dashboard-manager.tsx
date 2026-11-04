@@ -15,22 +15,19 @@ import {
   Layers,
   Flame,
   Award,
-  TrendingUp,
-  Share2,
   Lightbulb,
   Compass,
   Copy,
-  ArrowRight,
   RefreshCw,
   Radio,
-  BookOpen,
-  Send,
+  ExternalLink,
 } from "lucide-react";
 import type {
   AnalyticsSummary,
   ContentAnalyticsRecord,
   ContentItemRecord,
   PlatformTarget,
+  PlatformPublicationRecord,
 } from "@/types/domain";
 import { SectionCard } from "@/components/ui/section-card";
 import { useStudioMode } from "@/context/studio-mode-context";
@@ -40,16 +37,21 @@ interface AnalyticsDashboardManagerProps {
   initialSummary: AnalyticsSummary;
   initialAnalytics: ContentAnalyticsRecord[];
   initialItems: ContentItemRecord[];
+  initialPublications?: PlatformPublicationRecord[];
 }
 
 export function AnalyticsDashboardManager({
   initialSummary,
   initialAnalytics,
   initialItems,
+  initialPublications = [],
 }: AnalyticsDashboardManagerProps) {
   const [summary, setSummary] = useState<AnalyticsSummary>(initialSummary);
   const [analytics, setAnalytics] = useState<ContentAnalyticsRecord[]>(initialAnalytics);
   const [items] = useState<ContentItemRecord[]>(initialItems);
+  const [publications, setPublications] = useState<PlatformPublicationRecord[]>(initialPublications);
+  const [isSyncingBuffer, setIsSyncingBuffer] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Platform Filter
   const [selectedPlatform, setSelectedPlatform] = useState<"all" | PlatformTarget>("all");
@@ -75,6 +77,33 @@ export function AnalyticsDashboardManager({
       setEvalError(err instanceof Error ? err.message : "Terjadi kesalahan sistem saat evaluasi AI.");
     } finally {
       setEvaluating(false);
+    }
+  };
+
+  const handleSyncBufferAnalytics = async () => {
+    setIsSyncingBuffer(true);
+    setSyncFeedback(null);
+    try {
+      const res = await fetch("/api/analytics/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Gagal menyinkronkan data Buffer");
+      }
+      if (data.summary) setSummary(data.summary);
+      if (data.analytics) setAnalytics(data.analytics);
+      if (data.publications) setPublications(data.publications);
+      setSyncFeedback({
+        type: "success",
+        text: `Berhasil menyinkronkan ${data.report?.syncedCount ?? 0} publikasi video! Link publik & metrik views terbaru telah diperbarui otomatis.`,
+      });
+      setTimeout(() => setSyncFeedback(null), 7000);
+    } catch (err) {
+      setSyncFeedback({
+        type: "error",
+        text: err instanceof Error ? err.message : "Terjadi kesalahan saat sinkronisasi analitik Buffer.",
+      });
+    } finally {
+      setIsSyncingBuffer(false);
     }
   };
 
@@ -120,6 +149,26 @@ export function AnalyticsDashboardManager({
 
   // Map content id to item
   const itemMap = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+
+  // Map publications by contentId for quick access to platform public links
+  const pubMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        youtube?: PlatformPublicationRecord;
+        tiktok?: PlatformPublicationRecord;
+        instagram?: PlatformPublicationRecord;
+      }
+    >();
+    for (const p of publications) {
+      const cur = map.get(p.contentId) || {};
+      if (p.platform === "youtube") cur.youtube = p;
+      if (p.platform === "tiktok") cur.tiktok = p;
+      if (p.platform === "instagram") cur.instagram = p;
+      map.set(p.contentId, cur);
+    }
+    return map;
+  }, [publications]);
 
   // Combined sorted list
   const enrichedRows = useMemo(() => {
@@ -246,16 +295,55 @@ export function AnalyticsDashboardManager({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleRunEvaluation}
-          disabled={evaluating}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:from-indigo-700 hover:to-violet-700 active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shrink-0"
-        >
-          <Sparkles className={`h-4 w-4 ${evaluating ? "animate-spin" : ""}`} />
-          {evaluating ? "Menganalisis Performa Akun..." : "Evaluasi AI & Riset Topik Baru"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSyncBufferAnalytics}
+            disabled={isSyncingBuffer}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-indigo-700 shadow-xs hover:bg-indigo-50 active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isSyncingBuffer ? "animate-spin text-indigo-600" : ""}`} />
+            {isSyncingBuffer ? "Menyinkronkan Buffer..." : "Sinkronkan Metrik Buffer"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRunEvaluation}
+            disabled={evaluating}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md hover:from-indigo-700 hover:to-violet-700 active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer shrink-0"
+          >
+            <Sparkles className={`h-4 w-4 ${evaluating ? "animate-spin" : ""}`} />
+            {evaluating ? "Menganalisis Performa Akun..." : "Evaluasi AI & Riset Topik Baru"}
+          </button>
+        </div>
       </div>
+
+      {/* Sync Feedback Alert */}
+      {syncFeedback && (
+        <div
+          className={`rounded-xl border p-3.5 text-xs flex items-center justify-between animate-in fade-in duration-200 ${
+            syncFeedback.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-rose-200 bg-rose-50 text-rose-900"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {syncFeedback.type === "success" ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+            )}
+            <span>{syncFeedback.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSyncFeedback(null)}
+            className="text-stone-400 hover:text-stone-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* 2. Buffer Integration & Transparency Banner */}
       <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/40 p-4 shadow-xs">
@@ -706,6 +794,10 @@ export function AnalyticsDashboardManager({
                 enrichedRows.map((row) => {
                   const isViral = row.aiHookEvaluation?.hookStrength === "viral" || row.totalViews >= 1000;
                   const isStrong = row.aiHookEvaluation?.hookStrength === "strong" || (row.totalViews >= 400 && row.totalViews < 1000);
+                  const pubs = pubMap.get(row.contentId);
+                  const ytPub = pubs?.youtube;
+                  const ttPub = pubs?.tiktok;
+                  const igPub = pubs?.instagram;
 
                   return (
                     <tr key={row.id} className="hover:bg-stone-50/80 transition-colors">
@@ -753,6 +845,18 @@ export function AnalyticsDashboardManager({
                             {row.youtube.subscribersGained ? `• +${row.youtube.subscribersGained} subs` : ""}
                           </div>
                         )}
+                        {ytPub?.externalPostUrl && ytPub.externalPostUrl.startsWith("http") && (
+                          <a
+                            href={ytPub.externalPostUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
+                            title="Tonton video Shorts langsung di YouTube"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            Tonton Shorts
+                          </a>
+                        )}
                       </td>
 
                       {/* TikTok Column */}
@@ -765,6 +869,18 @@ export function AnalyticsDashboardManager({
                             {row.tiktok.likes ? `❤️ ${row.tiktok.likes}` : ""}
                           </div>
                         )}
+                        {ttPub?.externalPostUrl && ttPub.externalPostUrl.startsWith("http") && (
+                          <a
+                            href={ttPub.externalPostUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-stone-700 hover:text-stone-900 hover:underline"
+                            title="Tonton video langsung di TikTok"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            Tonton TikTok
+                          </a>
+                        )}
                       </td>
 
                       {/* Instagram Column */}
@@ -776,6 +892,18 @@ export function AnalyticsDashboardManager({
                           <div className="text-[10px] text-stone-500">
                             {row.instagram.likes ? `❤️ ${row.instagram.likes}` : ""}
                           </div>
+                        )}
+                        {igPub?.externalPostUrl && igPub.externalPostUrl.startsWith("http") && (
+                          <a
+                            href={igPub.externalPostUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-fuchsia-600 hover:text-fuchsia-800 hover:underline"
+                            title="Tonton video Reel langsung di Instagram"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            Tonton Reel
+                          </a>
                         )}
                       </td>
 

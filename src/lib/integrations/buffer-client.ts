@@ -355,3 +355,131 @@ export async function deleteBufferPost(postId: string): Promise<{ ok: boolean; e
 
   return { ok: true };
 }
+
+export interface BufferPostMetric {
+  name?: string;
+  label?: string;
+  key?: string;
+  value: number;
+  unit?: string;
+  description?: string;
+}
+
+export interface BufferPostDetail {
+  id: string;
+  status: string; // "sent" | "scheduled" | "buffer"
+  sentAt?: string | null;
+  dueAt?: string | null;
+  externalLink?: string | null;
+  channelService?: string | null;
+  metrics: BufferPostMetric[];
+}
+
+export interface ParsedBufferMetrics {
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  watchTimeHours: number;
+  retentionSeconds: number;
+  engagementRate: number;
+}
+
+export function extractMetricsMap(metrics: BufferPostMetric[] = []): ParsedBufferMetrics {
+  const result: ParsedBufferMetrics = {
+    views: 0,
+    likes: 0,
+    comments: 0,
+    shares: 0,
+    watchTimeHours: 0,
+    retentionSeconds: 0,
+    engagementRate: 0,
+  };
+
+  for (const m of metrics) {
+    const n = (m.label || m.name || m.key || "").toLowerCase();
+    const v = Number(m.value) || 0;
+    if (n.includes("view")) {
+      result.views = Math.round(v);
+    } else if (n.includes("reaction") || n.includes("like")) {
+      result.likes = Math.round(v);
+    } else if (n.includes("comment")) {
+      result.comments = Math.round(v);
+    } else if (n.includes("share")) {
+      result.shares = Math.round(v);
+    } else if (n.includes("watch time (min") || n === "watch time") {
+      result.watchTimeHours = Number((v / 60).toFixed(2));
+    } else if (n.includes("avg. watch time") || n.includes("retention")) {
+      result.retentionSeconds = Number(v.toFixed(1));
+    } else if (n.includes("eng. rate") || n.includes("engagement")) {
+      result.engagementRate = Number(v.toFixed(2));
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Mengambil detail postingan Buffer termasuk externalLink (link publik TikTok/YouTube/IG)
+ * dan seluruh metrik views, likes, shares, serta watch time secara real-time.
+ */
+export async function fetchBufferPostDetails(
+  postId: string
+): Promise<BufferPostDetail | null> {
+  const token = getBufferToken();
+
+  const query = `
+    query GetPost($input: PostInput!) {
+      post(input: $input) {
+        id
+        status
+        sentAt
+        dueAt
+        externalLink
+        channelService
+        metrics {
+          name
+          value
+          unit
+          description
+        }
+      }
+    }
+  `;
+
+  try {
+    const res = await fetch("https://api.buffer.com", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        query,
+        variables: { input: { id: postId } },
+      }),
+    });
+
+    const data = await res.json();
+    if (data.errors && data.errors.length > 0) {
+      return null;
+    }
+
+    const post = data.data?.post;
+    if (!post || !post.id) {
+      return null;
+    }
+
+    return {
+      id: post.id,
+      status: post.status,
+      sentAt: post.sentAt,
+      dueAt: post.dueAt,
+      externalLink: post.externalLink || null,
+      channelService: post.channelService || null,
+      metrics: Array.isArray(post.metrics) ? post.metrics : [],
+    };
+  } catch {
+    return null;
+  }
+}

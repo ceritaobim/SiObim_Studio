@@ -39,6 +39,7 @@ import {
 import { getActiveMainCharacterVoice } from "@/lib/characters/character-store";
 import { cleanNarrationForSpeech } from "@/lib/providers/tts/tts-provider";
 import { TelegramClient } from "@/features/telegram/telegram-client";
+import { syncBufferAnalyticsForPublishedItems } from "./analytics-sync-engine";
 import type { ContentItemRecord } from "@/types/domain";
 
 export interface AutopilotReport {
@@ -64,6 +65,9 @@ export interface AutopilotReport {
   cleanup: {
     purgedClipsCount: number;
     freedDiskBytes: number;
+  };
+  analytics?: {
+    syncedCount: number;
   };
 }
 
@@ -523,15 +527,29 @@ export async function runAutopilotCycle(
   // 3. Zero-Footprint Local Purge
   const cleanupReport = await purgeCompletedLocalFiles(ownerId, items);
 
+  // 4. Automatic Public Links & Analytics Sync from Buffer
+  let analyticsSyncedCount = 0;
+  try {
+    const syncRes = await syncBufferAnalyticsForPublishedItems(ownerId, {
+      notifyTelegram: true,
+    });
+    analyticsSyncedCount = syncRes.syncedCount;
+  } catch {
+    // Non-fatal
+  }
+
   const report: AutopilotReport = {
     timestamp: new Date().toISOString(),
     buffer: bufferReport,
     audio: audioReport,
     planning: planningReport,
     cleanup: cleanupReport,
+    analytics: {
+      syncedCount: analyticsSyncedCount,
+    },
   };
 
-  // 4. Kirim notifikasi Telegram ringkas jika ada progres baru
+  // 5. Kirim notifikasi Telegram ringkas jika ada progres baru
   await sendTelegramAutopilotNotification(report);
 
   return report;
