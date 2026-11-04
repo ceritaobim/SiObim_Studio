@@ -133,6 +133,30 @@ async function main() {
     return;
   }
 
+  if (step === '5' || step === 'd5') {
+    console.log(`⬇️  [LANGKAH D5] Mengunduh Card Video #3...`);
+    console.log(`   Alur: Klik Kanan Card 3 ➔ Klik Download ➔ Klik 720p`);
+    runDownloadEngine(`-ProfileDir "${targetProf.dirName}" -OnlyCardIndex 3`);
+
+    console.log('\n================================================================');
+    console.log('🔍 HASIL LANGKAH D5:');
+    console.log('   • Apakah Card 3 berhasil terunduh dengan format 720p?');
+    console.log('================================================================\n');
+    return;
+  }
+
+  if (step === '6' || step === 'd6') {
+    console.log(`⬇️  [LANGKAH D6] Mengunduh Card Video #4...`);
+    console.log(`   Alur: Klik Kanan Card 4 ➔ Klik Download ➔ Klik 720p`);
+    runDownloadEngine(`-ProfileDir "${targetProf.dirName}" -OnlyCardIndex 4`);
+
+    console.log('\n================================================================');
+    console.log('🔍 HASIL LANGKAH D6:');
+    console.log('   • Apakah Card 4 berhasil terunduh dengan format 720p?');
+    console.log('================================================================\n');
+    return;
+  }
+
   if (step === 'all' || step === 'da') {
     let count = 3;
     const countMatch = args.find((a) => a.startsWith('--count=') || a.startsWith('--cards='));

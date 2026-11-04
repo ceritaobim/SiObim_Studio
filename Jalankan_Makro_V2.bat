@@ -40,6 +40,8 @@ echo     [D1] Langkah D1 : Buka Google Flow dan Buka Proyek Terbaru
 echo     [D2] Langkah D2 : Rapikan Tampilan Kanvas (Tutup Panel Samping)
 echo     [D3] Langkah D3 : Unduh Card 1 (Klik Kanan + Download + 720p)
 echo     [D4] Langkah D4 : Unduh Card 2 (Klik Kanan + Download + 720p)
+echo     [D5] Langkah D5 : Unduh Card 3 (Klik Kanan + Download + 720p)
+echo     [D6] Langkah D6 : Unduh Card 4 (Klik Kanan + Download + 720p)
 echo     [DA] Jalankan Auto-Download Penuh di Profil %PNUM% (Semua Card)
 echo     [DB] Jalankan Auto-Download SEMUA 12 Profil Berurutan
 echo     [DS] Sinkronisasi File Downloads ke KLIP_BERSIH (FFmpeg Ready)
@@ -65,6 +67,8 @@ if /i "%PILIHAN%"=="D1" goto STEP_D1
 if /i "%PILIHAN%"=="D2" goto STEP_D2
 if /i "%PILIHAN%"=="D3" goto STEP_D3
 if /i "%PILIHAN%"=="D4" goto STEP_D4
+if /i "%PILIHAN%"=="D5" goto STEP_D5
+if /i "%PILIHAN%"=="D6" goto STEP_D6
 if /i "%PILIHAN%"=="DA" goto RUN_DOWNLOAD_SINGLE
 if /i "%PILIHAN%"=="DB" goto RUN_DOWNLOAD_ALL
 if /i "%PILIHAN%"=="DS" goto RUN_SYNC_DOWNLOADS
@@ -232,6 +236,32 @@ echo Pastikan jendela Google Flow aktif di layar...
 timeout /t 2 >nul
 cd /d "%~dp0"
 node scripts\download_step_by_step.js --step=d4 --profile=%PNUM%
+echo.
+pause
+goto SCENARIO_MENU
+
+:STEP_D5
+cls
+echo ===============================================================================
+echo   [LANGKAH D5] UNDUH CARD VIDEO #3 (KLIK KANAN + 720p) DI PROFIL %PNUM%
+echo ===============================================================================
+echo Pastikan jendela Google Flow aktif di layar...
+timeout /t 2 >nul
+cd /d "%~dp0"
+node scripts\download_step_by_step.js --step=d5 --profile=%PNUM%
+echo.
+pause
+goto SCENARIO_MENU
+
+:STEP_D6
+cls
+echo ===============================================================================
+echo   [LANGKAH D6] UNDUH CARD VIDEO #4 (KLIK KANAN + 720p) DI PROFIL %PNUM%
+echo ===============================================================================
+echo Pastikan jendela Google Flow aktif di layar...
+timeout /t 2 >nul
+cd /d "%~dp0"
+node scripts\download_step_by_step.js --step=d6 --profile=%PNUM%
 echo.
 pause
 goto SCENARIO_MENU
