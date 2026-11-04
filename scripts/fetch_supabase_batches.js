@@ -124,23 +124,24 @@ async function fetchSupabaseBatches(maxBatches = 11, chunkSize = 3) {
       const idx = sc.scene_index;
       const dur = idx === 3 ? 8 : 10;
       const outputLabel = `pzxc_${segmenNum}_${weekNum}_${contentNum}_${idx}xx`;
-      const visualAction = sc.visual_action || `Karakter Obim kertas origami memperagakan adegan secara dinamis dan ekspresif.`;
+      let visualAction = (sc.visual_action || `Karakter Obim kertas origami memperagakan adegan secara dinamis dan ekspresif.`).trim();
+      visualAction = visualAction.replace(/\s*\(100%.*?\)/gi, '').trim();
 
       return [
-        `Klip Bagian ${idx} (WAJIB Parameter Title: "${outputLabel}", Durasi: ${dur} detik, Vertikal 9:16):`,
-        `Aksi Visual: [${outputLabel}] ${visualAction} (100% stop-motion kertas origami, tanpa subtitle/teks di layar, mulut terkatup rapat, hening/mute tanpa BGM).`
+        `• Klip Bagian ${idx} (WAJIB Title: "${outputLabel}", Durasi: ${dur}s, 9:16):`,
+        `Aksi: ${visualAction}`
       ].join('\n');
     }).join('\n\n');
 
     const promptText = [
-      `Buatkan ${chunk.length} video vertikal 9:16 model Veo 3.1 stop-motion kertas origami karakter @obim.jpg untuk konten baru: "${item.title}" (${item.content_code}).`,
-      `Ketentuan Wajib: 100% handmade matte paper stop-motion, hening/mute tanpa musik (NO BGM), mulut karakter tertutup rapat (NO lip-sync/speech), dan tanpa teks/subtitle di layar. Konten ini baru dan independen dari video sebelumnya.`,
+      `Buatkan ${chunk.length} video vertikal 9:16 model Veo 3.1 stop-motion kertas origami karakter @obim.jpg untuk konten: "${item.title}" (${item.content_code}).`,
+      `Aturan Mutlak: Mute/hening tanpa audio/BGM, karakter mulut tertutup rapat (NO lip-sync/speech), NO teks/subtitle di layar.`,
       ``,
-      `PENTING & KRUSIAL: Saat memanggil tool generate video, Anda WAJIB mengisi parameter title setiap kartu HANYA dengan kode persis berikut:`,
+      `PENTING: Saat memanggil tool generate video, isi parameter 'title' kartu HANYA dengan kode persis berikut:`,
       ``,
       sceneInstructions,
       ``,
-      `Gunakan aset referensi origami berikut sebagai pemeran utama:`,
+      `Karakter utama: @obim.jpg`,
     ].join('\n');
 
     batches.push({
