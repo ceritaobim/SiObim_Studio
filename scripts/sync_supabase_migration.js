@@ -99,6 +99,40 @@ const DESCRIPTIVE_PATTERNS = [
   { regex: /paper.*network|pointing.*network/i, code: "CO-2026-018", scene: 2 },
   { regex: /gesturing.*banner|gesturing.*near/i, code: "CO-2026-018", scene: 3 },
   { regex: /discovers.*flam|origami.*flam|flamingo/i, code: "CO-2026-021", scene: 1 },
+
+  // CO-2026-042: Paru-Paru Kita Seukuran Lapangan Tenis!
+  { regex: /presents.*lung|lung.*model/i, code: "CO-2026-042", scene: 1 },
+  { regex: /lungs.*unfolding|unfolding.*court|court/i, code: "CO-2026-042", scene: 2 },
+  { regex: /reacts.*to.*lungs|reacts.*lungs/i, code: "CO-2026-042", scene: 3 },
+
+  // CO-2026-036: Kuda Laut Jantan yang Melahirkan!
+  { regex: /unfolding.*water|paper.*water/i, code: "CO-2026-036", scene: 1 },
+  { regex: /seahorse.*birth|birth.*stop-m/i, code: "CO-2026-036", scene: 2 },
+  { regex: /reacts.*to.*seahorse|reacts.*seahorse/i, code: "CO-2026-036", scene: 3 },
+
+  // CO-2026-041: Kenapa Kita Ketawa Pas Digelitik?
+  { regex: /tickling|observing.*tickling/i, code: "CO-2026-041", scene: 1 },
+  { regex: /reacting.*with.*sur/i, code: "CO-2026-041", scene: 2 },
+  { regex: /smiling.*to.*camera/i, code: "CO-2026-041", scene: 3 },
+
+  // CO-2026-039: Lidah Jerapah Ternyata Warnanya Biru!
+  { regex: /eating.*pineapple|pineapple/i, code: "CO-2026-039", scene: 1 },
+  { regex: /devours.*origami|devours/i, code: "CO-2026-039", scene: 2 },
+  { regex: /gestures.*toward.*camera/i, code: "CO-2026-039", scene: 3 },
+
+  // CO-2026-031: Kenapa Susu Warnanya Selalu Putih?
+  { regex: /animation.*of.*boy/i, code: "CO-2026-031", scene: 1 },
+  { regex: /flashlight|shining.*flashlight/i, code: "CO-2026-031", scene: 2 },
+  { regex: /character.*gesturing.*toward/i, code: "CO-2026-031", scene: 3 },
+
+  // CO-2026-038: Kaget Pas Mau Tidur Kayak Jatuh / Hypnic Jerk
+  { regex: /star.*explodes/i, code: "CO-2026-038", scene: 1 },
+  { regex: /standing.*in.*studio/i, code: "CO-2026-038", scene: 2 },
+  { regex: /waving.*in.*studio/i, code: "CO-2026-038", scene: 3 },
+
+  // CO-2026-012: Jam di Luar Angkasa Berjalan Lebih Lambat!
+  { regex: /pocket.*watches/i, code: "CO-2026-012", scene: 1 },
+  { regex: /correcting.*map|map.*time/i, code: "CO-2026-012", scene: 2 },
 ];
 
 async function runSupabaseMigration() {
