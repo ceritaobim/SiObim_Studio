@@ -138,13 +138,13 @@ function waitForUserOrTimeout(seconds, message) {
 }
 
 // ============================================================================
-// TAHAP 1: AUTO-GENERATE 11 PROFIL
+// TAHAP 1: AUTO-GENERATE 11 PROFIL (PROJECT TERAKHIR & ALWAYS APPROVE AKTIF)
 // ============================================================================
 
 async function runAutoGenerate11(batches, profiles, chromePath) {
   console.log('\n================================================================');
   console.log('   🚀 [TAHAP 1/3] MEMULAI AUTO-GENERATE DI 11 PROFIL GOOGLE');
-  console.log('   (Pencocokan Antrean Konten Langsung dari Database Supabase)');
+  console.log('   (Mode Efisien: Buka Proyek Terakhir + Always Approve + Langsung Pindah)');
   console.log('================================================================\n');
 
   const count = Math.min(11, profiles.length, batches.length);
@@ -160,76 +160,49 @@ async function runAutoGenerate11(batches, profiles, chromePath) {
     console.log('================================================================');
 
     // 1. Buka Chrome Flow
-    console.log(`🌐 [1/7] Membuka Google Flow untuk Profil ${prof.index}...`);
+    console.log(`🌐 [1/4] Membuka Google Flow untuk Profil ${prof.index}...`);
     const child = spawn(
       chromePath,
       [`--profile-directory=${prof.dirName}`, 'https://flow.google.com'],
       { detached: true, stdio: 'ignore' }
     );
     child.unref();
-    console.log(`⏳ Menunggu 9 detik agar halaman Flow termuat...`);
-    await delay(9000);
+    console.log(`⏳ Menunggu 8 detik agar beranda Flow termuat...`);
+    await delay(8000);
 
-    // 2. Klik "+ New project"
-    console.log(`🖱️  [2/7] Mengeklik tombol "+ New project"...`);
-    runClickTool('-ClickNewProject');
-    console.log(`⏳ Menunggu 5 detik kanvas baru...`);
-    await delay(5000);
+    // 2. Buka Project Terakhir (yang sudah aktif Always Approve)
+    console.log(`📂 [2/4] Mengklik kartu project terakhir (yang sudah aktif Always Approve)...`);
+    runClickTool('-OpenLatestProject');
+    console.log(`⏳ Menunggu 6 detik agar kanvas project terbuka penuh...`);
+    await delay(6000);
 
-    // 3. Tutup changelog modal
-    runClickTool('-DismissFlowModal');
-    await delay(1200);
-
-    // 4. Klik "Luaskan"
-    console.log(`⛶  [3/7] Mengeklik tombol "Luaskan" panel kanan...`);
+    // 3. Pastikan panel chat kanan terbuka (Luaskan)
+    console.log(`⛶  [3/4] Memastikan panel chat kanan terbuka (Luaskan)...`);
     runClickTool('-ClickExpandPrompt');
-    await delay(1800);
-
-    // 5. Upload obim.jpg
-    console.log(`🖼️  [4/7] Mengunggah aset karakter Obim (obim.jpg)...`);
-    runClickTool('-ClickPlusButton');
     await delay(1500);
-    runClickTool('-ClickUploadMedia');
-    await delay(1500);
-    runClickTool(`-SelectFileDialogFile "${ASSET_FILE}"`);
-    console.log(`   ⏳ Menunggu 4 detik upload file...`);
-    await delay(4000);
-    runClickTool('-ClickEmptySpace'); // Kirim ESC tutup popup upload
-    await delay(1200);
 
-    // 6. Paste prompt + kunci chip @obim.jpg via tombol kirim & chatbox
-    console.log(`📋 [5/7] Menyalin naskah prompt batch ${batch.sceneCount} video ke Clipboard...`);
+    // 4. Salin prompt, tempel, tag @obim.jpg, dan klik panah kirim
+    console.log(`📋 [4/4] Menyalin prompt batch (${batch.sceneCount} video) ke Clipboard...`);
     setClipboardText(batch.promptText);
     await delay(600);
 
-    console.log(`⚡ [6/7] Memfokuskan chatbox, paste prompt, kunci chip @obim.jpg, dan klik submit panah...`);
+    console.log(`⚡ [AUTO-ACTION] Fokus chatbox, paste prompt, kunci chip @obim.jpg, dan klik submit...`);
     runClickTool('-PasteTagAndSubmit');
     console.log(`🚀 Prompt batch berhasil dikirimkan ke Google Flow!`);
 
-    // 7. Tunggu dialog Approve & Klik Approve 1x bersih
-    console.log(`\n⏳ [7/7] Menunggu Google Flow menampilkan tombol Approve (~20 detik)...`);
-    console.log(`   (Tekan [ENTER] jika tombol Approve sudah muncul di layar Anda)`);
+    // Sesuai instruksi: karena sudah Always Approve, langsung jeda 3.5 detik lalu lanjut profil berikutnya!
+    console.log(`⏳ Menunggu 3.5 detik agar permintaan render diterima server Flow...`);
+    await delay(3500);
 
-    const userAction = await waitForUserOrTimeout(20, '⏱️  Menunggu dialog Approve muncul di Flow');
-    if (userAction === 'enter') {
-      console.log('\n⚡ [USER TRIGGER] Langsung mengeksekusi klik Approve...');
-    } else {
-      console.log('\n⏱️  Waktu tunggu 20 detik selesai, mengeksekusi klik Approve...');
-    }
-
-    console.log(`🖱️  Mengeklik tombol Approve / Always approve (1x bersih)...`);
-    runClickTool('-ClickApprove');
-    await delay(2500);
-
-    console.log(`✅ Profil ${prof.index} SELESAI DI-PROMPT! Google Flow sedang merender di cloud.`);
+    console.log(`✅ Profil ${prof.index} SELESAI DIKIRIMKAN! (Always Approve aktif, otomatis merender).`);
     if (i < count - 1) {
-      console.log(`➡️  Melanjutkan otomatis ke Profil ${profiles[i + 1].index} dalam 3 detik...\n`);
-      await delay(3000);
+      console.log(`➡️  LANGSUNG BERPINDAH KE PROFIL BERIKUTNYA (Profil ${profiles[i + 1].index})...\n`);
+      await delay(2000);
     }
   }
 
   console.log('\n================================================================');
-  console.log(`🎉 SELURUH ${count} PROFIL BERHASIL DI-PROMPT & DI-APPROVE!`);
+  console.log(`🎉 SELURUH ${count} PROFIL BERHASIL DIKIRIMKAN SECARA INSTAN!`);
   console.log('================================================================\n');
 }
 

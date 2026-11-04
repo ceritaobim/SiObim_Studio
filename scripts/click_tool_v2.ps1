@@ -2,6 +2,7 @@ param(
   [int]$X = 0,
   [int]$Y = 0,
   [switch]$ClickNewProject,
+  [switch]$OpenLatestProject,
   [switch]$DismissFlowModal,
   [switch]$ClickExpandPrompt,
   [switch]$ClickPlusButton,
@@ -80,6 +81,26 @@ if ($ClickNewProject) {
   Start-Sleep -Milliseconds 200
   $ws.SendKeys('{ENTER}')
   Write-Host "SUCCESS: Clicked '+ New project' at ($X, $Y)"
+  exit 0
+}
+
+# 1b. Buka project terbaru di beranda flow.google.com (RatioX: 0.2208, RatioY: 0.8796)
+if ($OpenLatestProject) {
+  $projX = [int]($screenWidth * 0.2208)
+  $projY = [int]($screenHeight * 0.8796)
+
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($projX, $projY)
+  Start-Sleep -Milliseconds 200
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 120
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 200
+  $ws.SendKeys('{ENTER}')
+  Write-Host "SUCCESS: Opened latest project at ($projX, $projY)"
   exit 0
 }
 
