@@ -212,8 +212,12 @@ async function processBatchV2(prof, batch, batchIndex, totalBatches) {
   console.log(`🖱️  [LANGKAH 1/5] Mengeklik tombol "+ New project"...`);
   const resNew = runClickTool('-ClickNewProject');
   console.log(`   ${resNew}`);
-  console.log(`⏳ Menunggu 6.5 detik agar halaman project baru siap...`);
-  await delay(6500);
+  console.log(`⏳ Menunggu 5 detik agar halaman project baru siap...`);
+  await delay(5000);
+
+  // Tutup modal pengumuman "Easier asset management" jika muncul
+  runClickTool('-DismissFlowModal');
+  await delay(1500);
 
   // Langkah 2: Klik tombol "Luaskan"
   console.log(`⛶  [LANGKAH 2/5] Mengeklik tombol "Luaskan" di pojok kanan input prompt...`);

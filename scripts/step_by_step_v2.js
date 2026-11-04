@@ -148,10 +148,18 @@ async function main() {
     const res = runClickTool('-ClickNewProject');
     console.log(`   ${res}`);
 
+    console.log(`⏳ Menunggu 5 detik agar halaman project baru termuat...`);
+    await delay(5000);
+
+    console.log(`🛡️  Memeriksa dan menutup popup modal "Easier asset management" jika muncul...`);
+    const resModal = runClickTool('-DismissFlowModal');
+    console.log(`   ${resModal}`);
+
     console.log('\n================================================================');
     console.log('🔍 HASIL LANGKAH 1:');
     console.log('   Lihat jendela Chrome Anda sekarang:');
-    console.log('   • Apakah halaman project baru Google Flow sudah terbuka?');
+    console.log('   • Halaman project baru Google Flow sudah terbuka di kanvas.');
+    console.log('   • Popup modal pengumuman sudah tertutup.');
     console.log('   • Jika ya, Anda bisa lanjut ke Langkah 2 (Luaskan Panel).');
     console.log('================================================================\n');
     return;

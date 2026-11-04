@@ -2,6 +2,7 @@ param(
   [int]$X = 0,
   [int]$Y = 0,
   [switch]$ClickNewProject,
+  [switch]$DismissFlowModal,
   [switch]$ClickExpandPrompt,
   [switch]$ClickPlusButton,
   [switch]$ClickUploadMedia,
@@ -78,6 +79,30 @@ if ($ClickNewProject) {
   Start-Sleep -Milliseconds 200
   $ws.SendKeys('{ENTER}')
   Write-Host "SUCCESS: Clicked '+ New project' at ($X, $Y)"
+  exit 0
+}
+
+# 1b. Menutup modal pengumuman / changelog Flow ("Easier asset management") jika muncul
+if ($DismissFlowModal) {
+  # 1. Kirim Escape
+  $ws.SendKeys('{ESC}')
+  Start-Sleep -Milliseconds 250
+
+  # 2. Klik tombol 'Get started' (posisi terkalibrasi: X = 61.8%, Y = 78.9%)
+  $modalBtnX = [int]($screenWidth * 0.618)
+  $modalBtnY = [int]($screenHeight * 0.789)
+
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($modalBtnX, $modalBtnY)
+  Start-Sleep -Milliseconds 150
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 250
+
+  # 3. Kirim Escape sekali lagi
+  $ws.SendKeys('{ESC}')
+
+  Write-Host "SUCCESS: Dismissed announcement modal via Get started & Escape"
   exit 0
 }
 
