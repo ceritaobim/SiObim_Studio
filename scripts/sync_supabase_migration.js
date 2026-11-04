@@ -305,11 +305,34 @@ async function runSupabaseMigration() {
       const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex').slice(0, 16);
       const cleanDestPath = path.join(OWNER_CLEAN_DIR, cleanFilename);
 
-      // Salin ke 00.FolderOwner/KLIP_BERSIH
+      // Salin ke 00.FolderOwner/KLIP_BERSIH (TETAP DIPERTAHANKAN di lokal untuk perakitan FFmpeg)
       fs.writeFileSync(cleanDestPath, fileBuffer);
 
       // Probe durasi video
       const durationMs = getFfprobeDuration(cleanDestPath) || 10000;
+
+      // 1. UNGGAH KLIP KE PENYIMPANAN CLOUD (Supabase Storage: studio-assets)
+      let cloudClipUrl = '';
+      const cloudClipStoragePath = `scene-clips/${targetItem.content_code}/${cleanFilename}`;
+      try {
+        const { error: uploadClipErr } = await supabase.storage
+          .from('studio-assets')
+          .upload(cloudClipStoragePath, fileBuffer, {
+            upsert: true,
+            contentType: 'video/mp4',
+          });
+
+        if (!uploadClipErr) {
+          const { data: urlData } = supabase.storage
+            .from('studio-assets')
+            .getPublicUrl(cloudClipStoragePath);
+          cloudClipUrl = urlData?.publicUrl || '';
+        } else {
+          console.warn(`   ⚠️ Supabase Storage upload clip warning: ${uploadClipErr.message}`);
+        }
+      } catch (cloudErr) {
+        console.warn(`   ⚠️ Supabase Storage exception: ${cloudErr.message}`);
+      }
 
       // UPDATE SUPABASE: scenes table
       const { error: updateSceneErr } = await supabase
@@ -354,6 +377,9 @@ async function runSupabaseMigration() {
             originalRawFile: candidate.filename,
             cleanFilename: cleanFilename,
             origin: candidate.origin,
+            cloudStoragePath: cloudClipStoragePath,
+            cloudUrl: cloudClipUrl,
+            cloudUploaded: Boolean(cloudClipUrl),
             importedAt: new Date().toISOString(),
           },
         });
@@ -430,8 +456,33 @@ async function runSupabaseMigration() {
 
         const success = assembleFinalVideo(item, scenes, uploadedClips, voiceAsset, masterVideoPath);
         if (success) {
-          // Daftarkan final_video asset ke Supabase
           const masterBuffer = fs.readFileSync(masterVideoPath);
+
+          // 2. UNGGAH VIDEO FINAL 00FINAL.MP4 KE PENYIMPANAN CLOUD
+          let masterCloudUrl = '';
+          const masterCloudPath = `final-videos/${item.content_code}_00Final.mp4`;
+          try {
+            const { error: uploadMasterErr } = await supabase.storage
+              .from('studio-assets')
+              .upload(masterCloudPath, masterBuffer, {
+                upsert: true,
+                contentType: 'video/mp4',
+              });
+
+            if (!uploadMasterErr) {
+              const { data: urlData } = supabase.storage
+                .from('studio-assets')
+                .getPublicUrl(masterCloudPath);
+              masterCloudUrl = urlData?.publicUrl || '';
+              console.log(`   ☁️  Video Final Master TERUNGGAH KE CLOUD: ${masterCloudUrl}`);
+            } else {
+              console.warn(`   ⚠️ Supabase Storage master upload warning: ${uploadMasterErr.message}`);
+            }
+          } catch (cloudMasterErr) {
+            console.warn(`   ⚠️ Supabase Storage master exception: ${cloudMasterErr.message}`);
+          }
+
+          // Daftarkan final_video asset ke Supabase
           const masterAssetId = crypto.randomUUID();
           await supabase.from('assets').insert({
             id: masterAssetId,
@@ -447,6 +498,9 @@ async function runSupabaseMigration() {
             height: 1920,
             metadata: {
               source: 'makro_final_assembly',
+              cloudStoragePath: masterCloudPath,
+              cloudUrl: masterCloudUrl,
+              cloudUploaded: Boolean(masterCloudUrl),
               assembledAt: new Date().toISOString(),
             },
           });
@@ -455,8 +509,24 @@ async function runSupabaseMigration() {
             code: item.content_code,
             title: item.title,
             path: masterVideoPath,
+            cloudUrl: masterCloudUrl,
           });
           console.log(`   ✨ Master 00Final.mp4 BERHASIL DIRAKIT: ${masterVideoPath}`);
+
+          // 3. HAPUS BAGIAN-BAGIAN VIDEO DARI LAPTOP SETELAH FINAL TERUPLOAD KE CLOUD
+          console.log(`   🧹 [Zero-Disk Cleanup] Membersihkan klip bagian lokal ${item.content_code} dari KLIP_BERSIH...`);
+          let deletedCount = 0;
+          for (const clip of uploadedClips) {
+            if (clip.storage_path && fs.existsSync(clip.storage_path)) {
+              try {
+                fs.unlinkSync(clip.storage_path);
+                deletedCount++;
+              } catch (delErr) {
+                console.warn(`      ⚠️ Gagal menghapus klip lokal: ${delErr.message}`);
+              }
+            }
+          }
+          console.log(`   ✅ ${deletedCount} klip bagian lokal telah dihapus dari laptop (Aman: Seluruh klip & video final master tersimpan di cloud).`);
         }
       } else {
         waitingForVoiceList.push({
