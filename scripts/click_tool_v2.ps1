@@ -11,6 +11,7 @@ param(
   [switch]$ClickEmptySpace,
   [switch]$PasteAndTagObim,
   [switch]$PasteTagAndSubmit,
+  [switch]$ClickSubmitArrow,
   [switch]$ClickApprove,
   [switch]$ExtractGoogleOneCredit
 )
@@ -268,84 +269,81 @@ if ($ClickEmptySpace) {
 }
 
 # 7b. Paste Prompt + Ketik @obim.jpg + Kunci Chip (TANPA SUBMIT)
+# Menggunakan teknik klik tombol kirim untuk memfokuskan teks area
 if ($PasteAndTagObim) {
-  $promptX = [int]($screenWidth * 0.860)
-  $promptY = [int]($screenHeight * 0.800)
-
-  # Fokuskan kursor ke dalam textarea
-  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($promptX, $promptY)
-  Start-Sleep -Milliseconds 300
-  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 80
-  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 350
-
-  # Bersihkan teks lama & tempel teks baru
-  $ws.SendKeys('^a')
-  Start-Sleep -Milliseconds 200
-  $ws.SendKeys('^v')
-  Start-Sleep -Milliseconds 700
-
-  # Pastikan kursor selalu di akhir kalimat
-  $ws.SendKeys('^{END}')
-  Start-Sleep -Milliseconds 300
-
-  # Spasi + @
-  $ws.SendKeys(' ')
-  Start-Sleep -Milliseconds 200
-  $ws.SendKeys('@')
-  Start-Sleep -Milliseconds 800
-
-  # Ketik obim.jpg & Enter chip
-  $ws.SendKeys('obim.jpg')
-  Start-Sleep -Milliseconds 600
-  $ws.SendKeys('{ENTER}')
-  Start-Sleep -Milliseconds 500
-
-  Write-Host "SUCCESS: Pasted prompt & locked @obim.jpg chip WITHOUT submitting"
-  exit 0
-}
-
-# 8. Paste Prompt + Ketik @obim.jpg + Tekan Enter Chip + Klik Submit Arrow (PRESISI TINGGI)
-if ($PasteTagAndSubmit) {
-  $promptX = [int]($screenWidth * 0.860)
-  $promptY = [int]($screenHeight * 0.800)
-
-  # Fokuskan kursor ke dalam textarea
-  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($promptX, $promptY)
-  Start-Sleep -Milliseconds 300
-  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 80
-  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 350
-
-  # Bersihkan teks lama & tempel teks baru
-  $ws.SendKeys('^a')
-  Start-Sleep -Milliseconds 200
-  $ws.SendKeys('^v')
-  Start-Sleep -Milliseconds 700
-
-  # Pastikan kursor selalu di akhir kalimat
-  $ws.SendKeys('^{END}')
-  Start-Sleep -Milliseconds 300
-
-  # Spasi + @
-  $ws.SendKeys(' ')
-  Start-Sleep -Milliseconds 200
-  $ws.SendKeys('@')
-  Start-Sleep -Milliseconds 800
-
-  # Ketik obim.jpg & Enter chip
-  $ws.SendKeys('obim.jpg')
-  Start-Sleep -Milliseconds 600
-  $ws.SendKeys('{ENTER}')
-  Start-Sleep -Milliseconds 500
-
-  # Klik lingkaran tombol panah kirim (Submit Arrow)
-  # Hasil ukur terkalibrasi: X = 94.4%, Y = 88.8%
   $btnX = [int]($screenWidth * 0.944)
   $btnY = [int]($screenHeight * 0.888)
 
+  # 1. Klik tombol kirim untuk masuk dan memfokuskan kursor ke dalam textarea
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
+  Start-Sleep -Milliseconds 300
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 400
+
+  # 2. Select All (Ctrl+A) & Paste Prompt (Ctrl+V)
+  $ws.SendKeys('^a')
+  Start-Sleep -Milliseconds 200
+  $ws.SendKeys('^v')
+  Start-Sleep -Milliseconds 800
+
+  # 3. Kursor berpindah ke huruf paling akhir prompt (Ctrl+End)
+  $ws.SendKeys('^{END}')
+  Start-Sleep -Milliseconds 300
+
+  # 4. Mengetik spasi, lalu @
+  $ws.SendKeys(' ')
+  Start-Sleep -Milliseconds 250
+  $ws.SendKeys('@')
+  Start-Sleep -Milliseconds 800
+
+  # 5. Mengetik obim.jpg, lalu menekan ENTER agar berubah menjadi chip bulat biru @obim.jpg
+  $ws.SendKeys('obim.jpg')
+  Start-Sleep -Milliseconds 600
+  $ws.SendKeys('{ENTER}')
+  Start-Sleep -Milliseconds 500
+
+  Write-Host "SUCCESS: Focused via submit button, pasted prompt & locked @obim.jpg chip WITHOUT submitting"
+  exit 0
+}
+
+# 8. Paste Prompt + Ketik @obim.jpg + Kunci Chip + Klik Submit Arrow (FULL SOP)
+if ($PasteTagAndSubmit) {
+  $btnX = [int]($screenWidth * 0.944)
+  $btnY = [int]($screenHeight * 0.888)
+
+  # 1. Klik tombol kirim untuk masuk dan memfokuskan kursor ke dalam textarea
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
+  Start-Sleep -Milliseconds 300
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 400
+
+  # 2. Select All (Ctrl+A) & Paste Prompt (Ctrl+V)
+  $ws.SendKeys('^a')
+  Start-Sleep -Milliseconds 200
+  $ws.SendKeys('^v')
+  Start-Sleep -Milliseconds 800
+
+  # 3. Kursor berpindah ke huruf paling akhir prompt (Ctrl+End)
+  $ws.SendKeys('^{END}')
+  Start-Sleep -Milliseconds 300
+
+  # 4. Mengetik spasi, lalu @
+  $ws.SendKeys(' ')
+  Start-Sleep -Milliseconds 250
+  $ws.SendKeys('@')
+  Start-Sleep -Milliseconds 800
+
+  # 5. Mengetik obim.jpg, lalu menekan ENTER agar berubah menjadi chip bulat biru @obim.jpg
+  $ws.SendKeys('obim.jpg')
+  Start-Sleep -Milliseconds 600
+  $ws.SendKeys('{ENTER}')
+  Start-Sleep -Milliseconds 600
+
+  # 6. Klik tombol panah kirim (Submit Arrow) untuk mulai proses render
   [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
   Start-Sleep -Milliseconds 200
   [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
@@ -357,6 +355,24 @@ if ($PasteTagAndSubmit) {
   $ws.SendKeys('{ENTER}')
 
   Write-Host "SUCCESS: Prompt submitted at ($btnX, $btnY)"
+  exit 0
+}
+
+# 8b. Hanya Klik Tombol Panah Kirim (Submit Arrow)
+if ($ClickSubmitArrow) {
+  $btnX = [int]($screenWidth * 0.944)
+  $btnY = [int]($screenHeight * 0.888)
+
+  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($btnX, $btnY)
+  Start-Sleep -Milliseconds 200
+  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 80
+  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  Start-Sleep -Milliseconds 200
+
+  $ws.SendKeys('{ENTER}')
+
+  Write-Host "SUCCESS: Clicked submit arrow at ($btnX, $btnY)"
   exit 0
 }
 

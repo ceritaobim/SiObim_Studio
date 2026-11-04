@@ -194,32 +194,38 @@ async function main() {
 
     console.log(`   3. Memilih file obim.jpg via Explorer...`);
     runClickTool(`-SelectFileDialogFile "${ASSET_FILE}"`);
-    await delay(2000);
+    console.log(`   ⏳ Menunggu 4 detik agar file obim.jpg selesai diunggah...`);
+    await delay(4000);
 
-    console.log(`   4. Konfirmasi lisensi 'I agree'...`);
-    runClickTool('-ClickIAgree');
-    await delay(3500);
-
-    console.log(`   5. Menutup panel flyout aset via tombol ESC...`);
+    console.log(`   4. Menutup panel flyout aset via tombol ESC...`);
     runClickTool('-ClickEmptySpace');
     await delay(1200);
 
     console.log('\n================================================================');
     console.log('🔍 HASIL LANGKAH 3:');
     console.log('   • Apakah gambar obim.jpg sudah muncul di kanvas project?');
-    console.log('   • Apakah panel upload sudah tertutup bersih via tombol ESC?');
+    console.log('   • Apakah panel upload sudah tertutup bersih (tanpa masuk ke mode edit gambar)?');
     console.log('================================================================\n');
     return;
   }
 
   if (step === 4) {
     console.log(`📋 [LANGKAH 4] Menyalin prompt batch, paste, dan kunci chip @obim.jpg...`);
+
+    // Jaga-jaga jika layar masih di mode editor gambar: kirim ESC untuk keluar ke kanvas utama
+    console.log(`   Memastikan layar berada di kanvas utama (menekan ESC untuk menutup mode preview jika ada)...`);
+    runClickTool('-ClickEmptySpace');
+    await delay(1000);
+
     const batch = getSampleBatch();
     console.log(`   Menyalin prompt untuk: [${batch.contentCode}] "${batch.title}"`);
     setClipboardText(batch.promptText);
     await delay(800);
 
-    console.log(`   Fokus ke chatbox, paste prompt, dan kunci chip @obim.jpg (TANPA MENGIRIM)...`);
+    console.log(`   1. Klik tombol kirim untuk fokus ke dalam textarea`);
+    console.log(`   2. Ctrl+A & Ctrl+V (paste prompt)`);
+    console.log(`   3. Ctrl+End ke ujung teks`);
+    console.log(`   4. Ketik spasi + @ + obim.jpg + Enter -> chip @obim.jpg`);
     const res = runClickTool('-PasteAndTagObim');
     console.log(`   ${res}`);
 
@@ -234,7 +240,7 @@ async function main() {
 
   if (step === 5) {
     console.log(`🚀 [LANGKAH 5] Mengeklik tombol panah kirim (Submit Arrow) di pojok kanan bawah...`);
-    const res = runClickTool('-PasteTagAndSubmit');
+    const res = runClickTool('-ClickSubmitArrow');
     console.log(`   ${res}`);
 
     console.log('\n================================================================');
