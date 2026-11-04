@@ -184,15 +184,12 @@ async function uploadObimAsset() {
   runClickTool('-ClickUploadMedia');
   await delay(1500);
 
-  console.log(`   [ASET 3/5] Memilih file obim.jpg via bilah alamat Windows Explorer...`);
+  console.log(`   [ASET 3/4] Memilih file obim.jpg via bilah alamat Windows Explorer...`);
   runClickTool(`-SelectFileDialogFile "${ASSET_FILE}"`);
-  await delay(2000);
+  console.log(`   ⏳ Menunggu 4 detik agar file obim.jpg selesai diunggah...`);
+  await delay(4000);
 
-  console.log(`   [ASET 4/5] Mengeklik konfirmasi 'I agree' (jika modal lisensi muncul)...`);
-  runClickTool('-ClickIAgree');
-  await delay(3500);
-
-  console.log(`   [ASET 5/5] Menutup panel upload via tombol ESC...`);
+  console.log(`   [ASET 4/4] Menutup panel flyout upload via tombol ESC...`);
   runClickTool('-ClickEmptySpace');
   await delay(1200);
 

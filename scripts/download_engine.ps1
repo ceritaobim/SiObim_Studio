@@ -11,7 +11,10 @@
 param(
   [string]$ProfileDir = "Profile 6",
   [int]$AssetCount = 4,
-  [switch]$SkipOpenProject
+  [switch]$SkipOpenProject,
+  [switch]$OnlyOpenProject,
+  [switch]$OnlySetupCanvas,
+  [int]$OnlyCardIndex = 0
 )
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -88,6 +91,10 @@ function Execute-ClickList($steps, $stageLabel) {
     foreach ($s in $steps) {
         $targetX = [int]($s.X)
         $targetY = [int]($s.Y)
+        if ($s.RatioX -and $s.RatioY) {
+            $targetX = [int]($screenWidth * $s.RatioX)
+            $targetY = [int]($screenHeight * $s.RatioY)
+        }
 
         $waitMs = [Math]::Max(1000, [Math]::Min(3000, [int]($s.DelayMs)))
         Start-Sleep -Milliseconds $waitMs
@@ -113,13 +120,13 @@ function Execute-ClickList($steps, $stageLabel) {
     }
 }
 
-if (-not $SkipOpenProject) {
+if (-not $SkipOpenProject -and -not $OnlySetupCanvas -and $OnlyCardIndex -eq 0) {
     Write-Host "[FLOW] Membuka Google Flow untuk $ProfileDir..." -ForegroundColor Yellow
     Start-Process $chromeExe -ArgumentList "--profile-directory=`"$ProfileDir`"", "https://flow.google.com"
 
-    # Tunggu 11 detik agar beranda Google Flow termuat
-    Write-Host "[WAIT] Menunggu 11 detik agar beranda Flow dan kartu project terbaru termuat..." -ForegroundColor Gray
-    for ($w = 11; $w -gt 0; $w--) {
+    # Tunggu 10 detik agar beranda Google Flow termuat
+    Write-Host "[WAIT] Menunggu 10 detik agar beranda Flow dan kartu project terbaru termuat..." -ForegroundColor Gray
+    for ($w = 10; $w -gt 0; $w--) {
         Write-Host -NoNewline "`r   Sisa waktu tunggu beranda: $w detik... "
         Start-Sleep -Seconds 1
     }
@@ -134,6 +141,10 @@ if (-not $SkipOpenProject) {
         $first = $openSteps | Select-Object -First 1
         $targetX = [int]($first.X)
         $targetY = [int]($first.Y)
+        if ($first.RatioX -and $first.RatioY) {
+            $targetX = [int]($screenWidth * $first.RatioX)
+            $targetY = [int]($screenHeight * $first.RatioY)
+        }
 
         Write-Host "[1/4 SETUP] Mengklik kartu project terbaru di ($targetX, $targetY)..." -ForegroundColor Green
         [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($targetX, $targetY)
@@ -156,10 +167,33 @@ if (-not $SkipOpenProject) {
         }
         Write-Host ""
     }
+
+    if ($OnlyOpenProject) {
+        Write-Host "SUCCESS: Latest project opened on canvas for $ProfileDir!" -ForegroundColor Green
+        exit 0
+    }
 } else {
     Write-Host "[FLOW] Mode langsung di dalam kanvas project..." -ForegroundColor Cyan
     Activate-ChromeWindow
     Start-Sleep -Milliseconds 500
+}
+
+# 2. Jika OnlyCardIndex, langsung unduh card tersebut tanpa mengulang setup
+if ($OnlyCardIndex -gt 0) {
+    $actionName = "download_aset_$OnlyCardIndex"
+    $assetSteps = $allSteps | Where-Object { $_.Action -eq $actionName }
+    if (-not $assetSteps -or $assetSteps.Count -eq 0) {
+        Write-Host "   [ERROR] Aksi '$actionName' tidak ditemukan dalam rekaman." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "`n   [UNDUH ASET $OnlyCardIndex] Memproses '$actionName'..." -ForegroundColor Cyan
+    Execute-ClickList $assetSteps "ASET $OnlyCardIndex"
+    Start-Sleep -Milliseconds 2500
+    Activate-ChromeWindow
+    $ws.SendKeys('{ESC}')
+    Write-Host "SUCCESS: Download triggered for Card $OnlyCardIndex!" -ForegroundColor Green
+    exit 0
 }
 
 # 2. Eksekusi display_setting
@@ -181,6 +215,11 @@ $leftSteps = $allSteps | Where-Object { $_.Action -eq "close_left_panel" }
 if ($leftSteps) {
     Execute-ClickList $leftSteps "4/4 SETUP: CLOSE LEFT PANEL"
     Start-Sleep -Milliseconds 1200
+}
+
+if ($OnlySetupCanvas) {
+    Write-Host "SUCCESS: Canvas display settings and panel collapse completed!" -ForegroundColor Green
+    exit 0
 }
 
 Write-Host "`n[SETUP SELESAI] Kanvas dan panel telah siap. Memulai pengunduhan $targetAssetCount aset video..." -ForegroundColor Green
