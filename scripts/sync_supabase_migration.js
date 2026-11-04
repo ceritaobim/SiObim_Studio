@@ -978,47 +978,99 @@ function assembleFinalVideo(item, scenes, clipAssets, voiceAsset, outputPath) {
       return false;
     }
 
-    console.log(`   🎬 Merangkai ${orderedClips.length} bagian video (${sortedParts.map((p) => `Bagian ${p}`).join(', ')}) dengan audio voice over...`);
+    console.log(`   🎬 Merangkai ${orderedClips.length} bagian video (${sortedParts.map((p) => `Bagian ${p}`).join(', ')}) dengan SFX + audio voice over Obim...`);
 
-    // Buat concat manifest file temporer
-    const concatListPath = path.resolve(STORAGE_DROPS_DIR, `concat_${item.content_code}_${Date.now()}.txt`);
-    const lines = orderedClips.map((p) => `file '${p.replace(/\\/g, '/')}'`);
-    fs.writeFileSync(concatListPath, lines.join('\n'), 'utf8');
+    // Dapatkan durasi audio narasi
+    const voiceDurationMs = getFfprobeDuration(voiceAsset.storage_path) || 30000;
+    const voiceDurationSec = voiceDurationMs / 1000;
 
-    // FFmpeg command: Concatenate clips, scale & pad to 1080x1920, and attach voice audio
+    // Hitung durasi per segmen klip agar selaras dengan total audio narasi (tidak terpotong)
+    const clipInfos = orderedClips.map((clipPath) => {
+      const durMs = getFfprobeDuration(clipPath) || 8000;
+      let hasAudio = false;
+      try {
+        const probe = spawnSync(ffmpegBin, ['-i', clipPath], { encoding: 'utf8', timeout: 5000 });
+        hasAudio = (probe.stderr || '').includes('Audio:');
+      } catch {}
+      return {
+        path: clipPath,
+        actualDurSec: durMs / 1000,
+        hasAudio,
+      };
+    });
+
+    const totalClipsDurSec = clipInfos.reduce((sum, c) => sum + c.actualDurSec, 0);
+    const deficitSec = Math.max(0, voiceDurationSec - totalClipsDurSec);
+    const padPerClipSec = deficitSec > 0 ? (deficitSec / clipInfos.length) : 0;
+
+    // Buat filter_complex: scale, pad 1080x1920 (9:16), tpad klon frame akhir agar narasi tidak terpotong
+    const filterParts = [];
+    clipInfos.forEach((info, i) => {
+      const padSec = parseFloat(padPerClipSec.toFixed(3));
+      const tpadStr = padSec > 0.05 ? `,tpad=stop_mode=clone:stop_duration=${padSec}` : '';
+      filterParts.push(
+        `[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=30,format=yuv420p${tpadStr}[v${i}]`
+      );
+    });
+
+    const vConcat = clipInfos.map((_, i) => `[v${i}]`).join('') + `concat=n=${clipInfos.length}:v=1:a=0[vout]`;
+    filterParts.push(vConcat);
+
+    // Audio mixing: efek suara klip (35%) + narasi Obim (100%)
+    const anyClipHasAudio = clipInfos.some((c) => c.hasAudio);
+    const voiceInputIdx = clipInfos.length;
+
+    let audioMapArgs = [];
+    if (anyClipHasAudio) {
+      clipInfos.forEach((info, i) => {
+        const padSec = parseFloat(padPerClipSec.toFixed(3));
+        const apadStr = padSec > 0.05 ? `,apad=pad_dur=${padSec}` : '';
+        if (info.hasAudio) {
+          filterParts.push(`[${i}:a]volume=0.35,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo${apadStr}[a${i}]`);
+        } else {
+          filterParts.push(`anullsrc=channel_layout=stereo:sample_rate=44100,atrim=0:${(info.actualDurSec + padPerClipSec).toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`);
+        }
+      });
+      const aConcat = clipInfos.map((_, i) => `[a${i}]`).join('') + `concat=n=${clipInfos.length}:v=0:a=1[asfx]`;
+      filterParts.push(aConcat);
+      filterParts.push(`[${voiceInputIdx}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,volume=1.0[avoice]`);
+      filterParts.push(`[asfx][avoice]amix=inputs=2:duration=longest:dropout_transition=0[aout]`);
+      audioMapArgs = ['-map', '[aout]'];
+    } else {
+      filterParts.push(`[${voiceInputIdx}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,volume=1.0[aout]`);
+      audioMapArgs = ['-map', '[aout]'];
+    }
+
+    const inputArgs = [];
+    clipInfos.forEach((c) => inputArgs.push('-i', c.path));
+    inputArgs.push('-i', voiceAsset.storage_path);
+
     const ffmpegArgs = [
       '-y',
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', concatListPath,
-      '-i', voiceAsset.storage_path,
-      '-map', '0:v:0',
-      '-map', '1:a:0',
-      '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1',
+      ...inputArgs,
+      '-filter_complex', filterParts.join(';'),
+      '-map', '[vout]',
+      ...audioMapArgs,
       '-c:v', 'libx264',
       '-preset', 'fast',
       '-crf', '18',
       '-pix_fmt', 'yuv420p',
       '-c:a', 'aac',
       '-b:a', '192k',
-      '-ar', '48000',
-      '-ac', '2',
+      '-ar', '44100',
       '-movflags', '+faststart',
-      '-shortest',
       outputPath,
     ];
 
     const result = spawnSync(ffmpegBin, ffmpegArgs, {
       encoding: 'utf8',
-      timeout: 120000,
+      timeout: 180000,
     });
-
-    try { fs.unlinkSync(concatListPath); } catch {}
 
     if (result.status === 0 && fs.existsSync(outputPath)) {
       return true;
     } else {
-      console.warn(`   ⚠️ FFmpeg error: ${result.stderr ? result.stderr.slice(-400) : 'Gagal'}`);
+      console.warn(`   ⚠️ FFmpeg error: ${result.stderr ? result.stderr.slice(-500) : 'Gagal'}`);
       return false;
     }
   } catch (err) {
