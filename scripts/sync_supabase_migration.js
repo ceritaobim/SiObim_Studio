@@ -273,9 +273,13 @@ async function sendFinalVideoToTelegram({ token, chatId, item, videoPath, cloudU
 
     // 1. Prioritas Utama: Upload file video MP4 langsung jika <= 50MB (Batas Telegram Bot API)
     if (buffer && buffer.byteLength <= 50 * 1024 * 1024) {
+      const durationSec = Math.round((getFfprobeDuration(videoPath) || 30000) / 1000);
       const formData = new FormData();
       formData.append('chat_id', String(chatId));
       formData.append('video', new Blob([buffer], { type: 'video/mp4' }), filename);
+      formData.append('width', '1080');
+      formData.append('height', '1920');
+      formData.append('duration', String(durationSec || 30));
       formData.append('caption', caption);
       formData.append('parse_mode', 'HTML');
       formData.append('supports_streaming', 'true');
@@ -988,6 +992,8 @@ function assembleFinalVideo(item, scenes, clipAssets, voiceAsset, outputPath) {
       '-safe', '0',
       '-i', concatListPath,
       '-i', voiceAsset.storage_path,
+      '-map', '0:v:0',
+      '-map', '1:a:0',
       '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1',
       '-c:v', 'libx264',
       '-preset', 'fast',
@@ -995,6 +1001,9 @@ function assembleFinalVideo(item, scenes, clipAssets, voiceAsset, outputPath) {
       '-pix_fmt', 'yuv420p',
       '-c:a', 'aac',
       '-b:a', '192k',
+      '-ar', '48000',
+      '-ac', '2',
+      '-movflags', '+faststart',
       '-shortest',
       outputPath,
     ];
