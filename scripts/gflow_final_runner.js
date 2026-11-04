@@ -17,6 +17,7 @@ const CLICK_TOOL = path.resolve(__dirname, 'click_tool_v2.ps1');
 const DOWNLOAD_ENGINE = path.resolve(__dirname, 'download_engine.ps1');
 const ASSET_FILE = path.resolve(__dirname, '..', '00.FolderOwner', 'assets', 'obim.jpg');
 const { fetchSupabaseBatches } = require('./fetch_supabase_batches');
+const { runSupabaseMigration } = require('./sync_supabase_migration');
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -280,6 +281,11 @@ async function main() {
 
   const chromePath = findChromePath();
 
+  if (mode === '--sync' || mode === '--migrate') {
+    await runSupabaseMigration();
+    return;
+  }
+
   if (mode === '--generate-only') {
     await runAutoGenerate11(batches, profiles11, chromePath);
     return;
@@ -290,11 +296,11 @@ async function main() {
     return;
   }
 
-  // MODE FULL PIPELINE: Generate ➔ Jeda Render ➔ Download
+  // MODE FULL PIPELINE: Generate ➔ Jeda Render ➔ Download ➔ Migrasi & Sinkronisasi Database
   await runAutoGenerate11(batches, profiles11, chromePath);
 
   console.log('\n================================================================');
-  console.log('   ⏳ [TAHAP 2/3] MENUNGGU GOOGLE FLOW SELESAI MERENDER VIDEO');
+  console.log('   ⏳ [TAHAP 2/4] MENUNGGU GOOGLE FLOW SELESAI MERENDER VIDEO');
   console.log('================================================================');
   console.log('Video sedang dirender oleh cloud Google Flow di latar belakang.');
   console.log('Beri waktu beberapa menit agar seluruh klip video 1080x1920 siap unduh.');
@@ -305,9 +311,16 @@ async function main() {
   await runAutoDownload11(batches, profiles11);
 
   console.log('\n================================================================');
+  console.log('   📦 [TAHAP 4/4] MEMULAI MIGRASI & SINKRONISASI DATABASE SUPABASE');
+  console.log('================================================================');
+
+  await runSupabaseMigration();
+
+  console.log('\n================================================================');
   console.log('   🏁 MAKRO FINAL SELESAI DENGAN SEMPURNA!');
   console.log('   • 11 Profil Google telah berhasil di-prompt (Sumber: Supabase)');
   console.log('   • 11 Profil Google telah selesai diunduh');
+  console.log('   • Database Supabase telah diperbarui & status scene tersinkronisasi');
   console.log('================================================================\n');
 }
 
