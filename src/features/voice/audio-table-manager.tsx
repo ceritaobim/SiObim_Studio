@@ -41,6 +41,23 @@ interface AudioTableManagerProps {
   ttsProviderLabel: string;
 }
 
+async function safeParseJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (res.status === 504) {
+      throw new Error(
+        "Server Timeout (504): Proses pembuatan audio/Google Drive membutuhkan waktu lebih lama dari batas Vercel. Silakan klik sekali lagi atau gunakan makro laptop."
+      );
+    }
+    if (!res.ok) {
+      throw new Error(`Server Error (${res.status}): ${text.slice(0, 150)}`);
+    }
+    throw new Error("Respons server bukan format JSON yang valid.");
+  }
+}
+
 export function AudioTableManager({
   initialItems,
   initialAssets,
@@ -147,7 +164,7 @@ export function AudioTableManager({
           contentId: item.id,
         }),
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (!res.ok) {
         throw new Error(data.error || "Gagal men-generate audio.");
       }
@@ -302,7 +319,7 @@ export function AudioTableManager({
           contentId: item.id,
         }),
       });
-      const data = await res.json();
+      const data = await safeParseJson(res);
       if (!res.ok) throw new Error(data.error || "Gagal re-transkripsi audio.");
       if (data.scenes && Array.isArray(data.scenes)) {
         setScenesByContent((prev) => ({
@@ -339,7 +356,7 @@ export function AudioTableManager({
             contentId: item.id,
           }),
         });
-        const data = await res.json();
+        const data = await safeParseJson(res);
         if (res.ok && data.voiceAsset) {
           setAssets((prev) => [
             data.voiceAsset,
@@ -405,7 +422,7 @@ export function AudioTableManager({
             contentId: item.id,
           }),
         });
-        const data = await res.json();
+        const data = await safeParseJson(res);
         if (res.ok && data.voiceAsset) {
           done++;
           setAssets((prev) => [
