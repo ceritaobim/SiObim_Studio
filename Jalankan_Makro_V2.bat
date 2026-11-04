@@ -1,101 +1,69 @@
 @echo off
-title CeritaObim Studio - Makro Otomasi V2 (Presisi & Bersih)
+title CeritaObim Studio - Makro V2 (Generate 1 Akun Terpilih)
 color 0A
 
 :MENU
 cls
 echo ===============================================================================
-echo            CERITAOBIM STUDIO - MAKRO OTOMASI PRODUKSI V2 (BERSIH)
+echo            CERITAOBIM STUDIO - MAKRO V2 (GENERATE 1 AKUN TERPILIH)
 echo ===============================================================================
 echo.
-echo   [1] START ALL V2 (Pipeline Penuh: Generate Presisi - Download - Rakit - Kredit)
-echo   [2] Generate Video V2 (Batch Prompting 12 Profil Presisi - Anti Miss-Click)
-echo   [3] Uji Coba Generate 1 Profil (Pilih profil tertentu, misal Profil 4)
-echo   [4] Download Video (Auto-Download Aset 720p)
-echo   [5] Migrasi (Pindahkan Downloads pzxc_*, Bersihkan Nama, & Auto-Rakit FFmpeg)
-echo   [6] Cek Sisa Kredit (100%% Otomatis 12 Akun via Histori Google One)
-echo   [7] Jalankan Bot Telegram (Copilot & Notifikasi Video HP)
-echo   [8] Buka Dashboard Studio (Web Localhost)
-echo   [9] Keluar
+echo   Makro V2 ini berfokus pada eksekusi generate video otomatis yang bersih,
+echo   presisi (anti miss-click pada tombol submit panah), dan tanpa membabi-buta.
+echo.
+echo   Alur SOP yang dijalankan:
+echo     1. Membuka Google Flow di profil terpilih
+echo     2. Klik "+ New project"
+echo     3. Klik tombol "Luaskan" (buka panel kanan)
+echo     4. Upload aset obim.jpg ke project
+echo     5. Tempel teks prompt batch ke chatbox
+echo     6. Ketik @obim.jpg dan kunci chip aset via Enter
+echo     7. Klik lingkaran tombol panah kirim (Submit Arrow)
+echo     8. Tunggu dialog Approve muncul dan klik Approve 1x saja
 echo.
 echo ===============================================================================
-set /p PILIHAN="Pilih menu [1-9]: "
+echo.
+echo   [1] Jalankan Generate Otomatis (Pilih 1 Akun Profil, misal: Profil 4)
+echo   [2] Keluar
+echo.
+echo ===============================================================================
+set /p PILIHAN="Pilih menu [1/2]: "
 
-if "%PILIHAN%"=="1" goto START_ALL_V2
-if "%PILIHAN%"=="2" goto GENERATE_V2
-if "%PILIHAN%"=="3" goto TEST_SINGLE_PROFILE
-if "%PILIHAN%"=="4" goto DOWNLOAD_VIDEO
-if "%PILIHAN%"=="5" goto MIGRASI
-if "%PILIHAN%"=="6" goto CHECK_CREDITS
-if "%PILIHAN%"=="7" goto TELEGRAM_BOT
-if "%PILIHAN%"=="8" goto OPEN_STUDIO
-if "%PILIHAN%"=="9" goto EXIT
+if "%PILIHAN%"=="1" goto RUN_SINGLE
+if "%PILIHAN%"=="2" goto EXIT
 
-echo Pilihan tidak valid! Silakan tekan angka 1 sampai 9.
+echo Pilihan tidak valid! Silakan ketik 1 atau 2.
 timeout /t 2 >nul
 goto MENU
 
-:START_ALL_V2
+:RUN_SINGLE
 cls
-cd /d "%~dp0"
-node scripts\start_all_pipeline_v2.js
+echo ===============================================================================
+echo            PILIH NOMOR PROFIL GOOGLE UNTUK DIJALANKAN (1 AKUN)
+echo ===============================================================================
 echo.
-pause
-goto MENU
-
-:GENERATE_V2
-cls
-cd /d "%~dp0"
-node scripts\gflow_v2_runner.js --all
+echo   Pilihan umum profil:
+echo     • Profil 4  : allowmeow1@gmail.com (Kredit 50/50 - Segar)
+echo     • Profil 5  : allowmeow2@gmail.com (Kredit 50/50 - Segar)
+echo     • Profil 6  : muhammadiqbal3616@gmail.com (Kredit 50/50 - Segar)
+echo     • Profil 1  : andimuhammadiqbal361@gmail.com
 echo.
-pause
-goto MENU
-
-:TEST_SINGLE_PROFILE
-cls
-cd /d "%~dp0"
-set /p PNUM="Masukkan nomor profil yang ingin diuji coba (misal: 4): "
+set /p PNUM="Masukkan nomor profil yang ingin dijalankan (Default: 4): "
 if "%PNUM%"=="" set PNUM=4
+
+cls
+echo ===============================================================================
+echo   🚀 MEMULAI MAKRO V2 UNTUK PROFIL %PNUM%...
+echo ===============================================================================
+echo.
+cd /d "%~dp0"
 node scripts\gflow_v2_runner.js --single=%PNUM%
 echo.
-pause
-goto MENU
-
-:DOWNLOAD_VIDEO
-cls
-cd /d "%~dp0"
-node scripts\download_recorded_assets.js
+echo ===============================================================================
+echo   Eksekusi selesai. Silakan periksa jendela Chrome Profil %PNUM% di layar Anda!
+echo ===============================================================================
 echo.
 pause
-goto MENU
-
-:MIGRASI
-cls
-cd /d "%~dp0"
-node scripts\macro-worker.js --sync
-echo.
-pause
-goto MENU
-
-:CHECK_CREDITS
-cls
-cd /d "%~dp0"
-node scripts\check_flow_credits.js
-echo.
-pause
-goto MENU
-
-:TELEGRAM_BOT
-cls
-cd /d "%~dp0"
-node scripts\telegram-bot-runner.js
-echo.
-pause
-goto MENU
-
-:OPEN_STUDIO
-cls
-start http://localhost:3000
 goto MENU
 
 :EXIT
