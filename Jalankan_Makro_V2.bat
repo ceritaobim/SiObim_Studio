@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 title CeritaObim Studio - Makro V2 (Pengujian Step-by-Step)
 color 0A
 
@@ -8,13 +9,11 @@ echo ===========================================================================
 echo            CERITAOBIM STUDIO - MAKRO V2 (PENGUJIAN STEP-BY-STEP)
 echo ===============================================================================
 echo.
-echo   PILIH AKUN GOOGLE PROFIL YANG INGIN DIGUNAKAN:
-echo     • Profil 4  : allowmeow1@gmail.com (Rekomendasi - Kredit 50/50 Segar)
-echo     • Profil 5  : allowmeow2@gmail.com (Kredit 50/50 Segar)
-echo     • Profil 6  : muhammadiqbal3616@gmail.com (Kredit 50/50 Segar)
-echo     • Profil 1  : andimuhammadiqbal361@gmail.com
+cd /d "%~dp0"
+node scripts\show_profiles.js
 echo.
-set /p PNUM="Masukkan nomor profil Google [1-12] (Default: 4): "
+echo ===============================================================================
+set /p PNUM="Pilih nomor akun profil Google [1-12] (Default: 4): "
 if "%PNUM%"=="" set PNUM=4
 goto SCENARIO_MENU
 
@@ -74,7 +73,7 @@ cls
 echo ===============================================================================
 echo   [LANGKAH 2] KLIK TOMBOL "LUASKAN" (BUKA PANEL KANAN) DI PROFIL %PNUM%
 echo ===============================================================================
-echo Pastikan jendela Google Flow yang sudah terbuka aktif di layar...
+echo Pastikan jendela Google Flow aktif di layar...
 timeout /t 2 >nul
 cd /d "%~dp0"
 node scripts\step_by_step_v2.js --step=2 --profile=%PNUM%
