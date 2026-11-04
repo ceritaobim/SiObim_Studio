@@ -19,11 +19,12 @@ echo     [2] Jalankan Auto-Generate Saja (11 Profil Berurutan)
 echo     [3] Jalankan Auto-Download Saja (11 Profil Berurutan)
 echo     [4] Migrasi & Sinkronisasi Database (Downloads -> KLIP_BERSIH -> Supabase)
 echo     [5] Cek Antrean Konten Pending di Database Supabase (Live Audit)
+echo     [6] Jalankan Studio Watcher Real-Time (Auto-Pilot Background Watcher)
 echo.
 echo     [Q] Keluar
 echo.
 echo ===============================================================================
-set /p PILIHAN="Pilih menu [1/2/3/4/5/Q] (Default: 1): "
+set /p PILIHAN="Pilih menu [1/2/3/4/5/6/Q] (Default: 1): "
 if "%PILIHAN%"=="" set PILIHAN=1
 
 if "%PILIHAN%"=="1" goto RUN_FULL
@@ -31,6 +32,7 @@ if "%PILIHAN%"=="2" goto RUN_GENERATE_ONLY
 if "%PILIHAN%"=="3" goto RUN_DOWNLOAD_ONLY
 if "%PILIHAN%"=="4" goto RUN_MIGRATION
 if "%PILIHAN%"=="5" goto CHECK_SUPABASE
+if "%PILIHAN%"=="6" goto RUN_REALTIME_WATCHER
 if /i "%PILIHAN%"=="Q" goto EXIT
 
 echo Pilihan tidak valid!
@@ -93,6 +95,18 @@ echo ===========================================================================
 echo.
 cd /d "%~dp0"
 node scripts\fetch_supabase_batches.js
+echo.
+pause
+goto MAIN_MENU
+
+:RUN_REALTIME_WATCHER
+cls
+echo ===============================================================================
+echo   [REAL-TIME DAEMON] MEMULAI STUDIO WATCHER OTOMATIS (NON-STOP)
+echo ===============================================================================
+echo.
+cd /d "%~dp0"
+node scripts\realtime_studio_watcher.js
 echo.
 pause
 goto MAIN_MENU

@@ -57,6 +57,107 @@ function getFfmpegBinary() {
   return 'ffmpeg';
 }
 
+function pcm16ToWavBuffer(pcmBuffer, sampleRate = 24000) {
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + pcmBuffer.length, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // PCM format
+  header.writeUInt16LE(1, 22); // Mono
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(pcmBuffer.length, 40);
+  return Buffer.concat([header, pcmBuffer]);
+}
+
+function cleanNarration(text) {
+  return (text || '')
+    .replace(/(?:^|\n)\s*\[?\d{1,3}\s*(?:-|–|—|s\/d|sampai|to)\s*\d{1,3}\s*(?:s|sec|detik)?\]?\s*:?\s*(?=\n|$)/gi, '\n')
+    .replace(/(?:^|\n)\s*\[?\d{1,3}\s*(?:-|–|—)\s*\d{1,3}\s*(?:s|sec|detik)?\]?\s*:\s*/gi, '\n')
+    .replace(/\n{2,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * Otomatis menghasilkan rekaman audio voice over jika belum ada
+ */
+async function synthesizeVoiceOnDemand(item, env) {
+  const cleanText = cleanNarration(item.narration);
+  if (!cleanText || cleanText.length < 5) return null;
+
+  const geminiKey = env.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  const elevenKey = env.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+
+  // 1. Coba Gemini TTS
+  if (geminiKey) {
+    try {
+      console.log(`   🎙️ [Auto-Voice] Men-generate audio Obim via Gemini TTS untuk ${item.content_code}...`);
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${encodeURIComponent(geminiKey)}`;
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `Speak in a high-pitched, bold, optimistic, super energetic 10-year-old Indonesian boy adventure hero voice (like a brave young boy cartoon protagonist, confident, bright, loud, and punchy; read only the Indonesian narration below):\n\n${cleanText}` }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } }
+          }
+        })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const b64 = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || '';
+        if (b64) {
+          const pcm = Buffer.from(b64, 'base64');
+          const wav = pcm16ToWavBuffer(pcm, 24000);
+          return { buffer: wav, mimeType: 'audio/wav', ext: 'wav', provider: 'gemini_tts' };
+        }
+      } else {
+        console.warn(`   ⚠️ Gemini TTS status ${resp.status} (Kuota limit). Beralih otomatis ke ElevenLabs...`);
+      }
+    } catch (err) {
+      console.warn(`   ⚠️ Gemini TTS error: ${err.message}`);
+    }
+  }
+
+  // 2. Fallback ke ElevenLabs (Premade Voice 'TX3LPaxmHKxFdv7VOQHJ' - Liam yang diizinkan di Free Tier)
+  if (elevenKey) {
+    try {
+      console.log(`   🎙️ [Auto-Voice] Men-generate audio Obim via ElevenLabs untuk ${item.content_code}...`);
+      const voiceId = env.ELEVENLABS_VOICE_ID || 'TX3LPaxmHKxFdv7VOQHJ';
+      const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': elevenKey,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg'
+        },
+        body: JSON.stringify({
+          text: cleanText,
+          model_id: 'eleven_multilingual_v2'
+        })
+      });
+      if (resp.ok) {
+        const ab = await resp.arrayBuffer();
+        return { buffer: Buffer.from(ab), mimeType: 'audio/mpeg', ext: 'mp3', provider: 'elevenlabs' };
+      } else {
+        const errTxt = await resp.text().catch(() => '');
+        console.warn(`   ⚠️ ElevenLabs response (${resp.status}): ${errTxt.slice(0, 100)}`);
+      }
+    } catch (err) {
+      console.warn(`   ⚠️ ElevenLabs exception: ${err.message}`);
+    }
+  }
+
+  return null;
+}
+
 function getFfprobeDuration(filePath) {
   try {
     const ffmpegBin = getFfmpegBinary();
@@ -156,7 +257,7 @@ async function runSupabaseMigration() {
   console.log('📡 Mengambil daftar konten dan adegan dari Database Supabase...');
   const { data: contentItems, error: contentErr } = await supabase
     .from('content_items')
-    .select('id, owner_id, content_code, title, category, topic');
+    .select('id, owner_id, content_code, title, category, topic, narration');
 
   if (contentErr) {
     throw new Error('Gagal mengambil content_items dari Supabase: ' + contentErr.message);
@@ -238,11 +339,10 @@ async function runSupabaseMigration() {
 
   if (candidateFiles.length === 0) {
     console.log('ℹ️  Tidak ada file klip baru di folder Downloads atau Dropzone.');
-    console.log('   Semua klip yang ada sebelumnya sudah termigrasi & tersinkronisasi.');
-    return { migratedCount: 0, assembledCount: 0 };
+    console.log('   Melanjutkan ke evaluasi kelengkapan konten & perakitan video...');
+  } else {
+    console.log(`🎯 Ditemukan ${candidateFiles.length} file video baru untuk diproses:\n`);
   }
-
-  console.log(`🎯 Ditemukan ${candidateFiles.length} file video baru untuk diproses:\n`);
 
   const migratedClips = [];
   const touchedContentIds = new Set();
@@ -423,9 +523,37 @@ async function runSupabaseMigration() {
   const assembledList = [];
   const waitingForVoiceList = [];
 
-  for (const contentId of touchedContentIds) {
-    const item = contentItems.find((i) => i.id === contentId);
-    if (!item) continue;
+  // Dapatkan seluruh konten yang sudah punya final_video di assets Supabase
+  const { data: existingFinals } = await supabase
+    .from('assets')
+    .select('content_id')
+    .eq('asset_type', 'final_video');
+  const finishedIds = new Set((existingFinals || []).map((a) => a.content_id));
+
+  // Ambil daftar klip yang ada di KLIP_BERSIH lokal
+  const cleanFiles = fs.existsSync(OWNER_CLEAN_DIR) ? fs.readdirSync(OWNER_CLEAN_DIR) : [];
+  const cleanFilesByNum = new Map();
+  cleanFiles.forEach((cf) => {
+    const m = cf.match(/^\d+_\d+_(\d+)_(\d+)\.mp4$/i);
+    if (m) {
+      const cNum = parseInt(m[1], 10);
+      const sIdx = parseInt(m[2], 10);
+      if (!cleanFilesByNum.has(cNum)) cleanFilesByNum.set(cNum, []);
+      cleanFilesByNum.get(cNum).push({ file: cf, path: path.join(OWNER_CLEAN_DIR, cf), sceneIndex: sIdx });
+    }
+  });
+
+  // Evaluasi semua konten yang disentuh ATAU yang punya klip lengkap di KLIP_BERSIH tapi belum ada final_video
+  const contentsToEvaluate = contentItems.filter((item) => {
+    if (finishedIds.has(item.id)) return false; // Sudah dirakit
+    const cNum = parseInt(item.content_code.replace(/\D/g, '').slice(-3), 10);
+    const hasLocalClips = cleanFilesByNum.has(cNum) && (cleanFilesByNum.get(cNum).length >= 3);
+    return touchedContentIds.has(item.id) || hasLocalClips;
+  });
+
+  for (const item of contentsToEvaluate) {
+    const contentId = item.id;
+    const cNum = parseInt(item.content_code.replace(/\D/g, '').slice(-3), 10);
 
     // Ambil scene & assets terbaru dari Supabase
     const { data: scenes } = await supabase
@@ -439,22 +567,134 @@ async function runSupabaseMigration() {
       .select('id, asset_type, storage_path, scene_id')
       .eq('content_id', contentId);
 
-    const totalScenes = (scenes || []).length;
-    const uploadedClips = (assets || []).filter((a) => a.asset_type === 'scene_video');
-    const voiceAsset = (assets || []).find((a) => a.asset_type === 'voice_audio');
+    const totalScenes = (scenes || []).length || 3;
+    const targetRequiredClips = Math.min(3, totalScenes);
+    let uploadedClips = (assets || []).filter((a) => a.asset_type === 'scene_video');
 
-    const isAllClipsReady = totalScenes > 0 && uploadedClips.length >= totalScenes;
+    // Jika di assets Supabase belum tercatat 3 klip tapi di KLIP_BERSIH ada klip, sinkronkan
+    if (uploadedClips.length < targetRequiredClips && cleanFilesByNum.has(cNum)) {
+      const localClips = cleanFilesByNum.get(cNum);
+      for (const lc of localClips) {
+        if (!uploadedClips.some((uc) => uc.storage_path === lc.path || uc.storage_path.endsWith(lc.file))) {
+          const sc = (scenes || []).find((s) => s.scene_index === lc.sceneIndex);
+          uploadedClips.push({
+            id: crypto.randomUUID(),
+            asset_type: 'scene_video',
+            storage_path: lc.path,
+            scene_id: sc ? sc.id : null,
+          });
+        }
+      }
+    }
+
+    const voiceAsset = (assets || []).find((a) => a.asset_type === 'voice_audio');
+    const isAllClipsReady = uploadedClips.length >= targetRequiredClips;
 
     if (isAllClipsReady) {
-      if (voiceAsset && fs.existsSync(voiceAsset.storage_path)) {
-        console.log(`\n🎉 Konten [${item.content_code}] ${item.title}: KLIP LENGKAP + VOICE AUDIO ADA!`);
+      // Selesaikan pencarian audio voice over yang valid
+      let resolvedVoicePath = null;
+      let effectiveVoiceAsset = voiceAsset;
+
+      if (voiceAsset && voiceAsset.storage_path && fs.existsSync(voiceAsset.storage_path)) {
+        resolvedVoicePath = voiceAsset.storage_path;
+      } else {
+        // 1. Cari file audio di folder .data/media
+        const mediaDir = path.join(ROOT_DIR, '.data', 'media');
+        if (fs.existsSync(mediaDir)) {
+          const mFiles = fs.readdirSync(mediaDir);
+          const found = mFiles.find(
+            (f) => f.startsWith(`${item.content_code}_VOICE_`) && (f.endsWith('.wav') || f.endsWith('.mp3'))
+          );
+          if (found) {
+            resolvedVoicePath = path.join(mediaDir, found);
+            console.log(`   🎙️  [Audio Cache] Ditemukan rekaman suara Obim lokal: ${found}`);
+          }
+        }
+
+        // 2. Cek di Supabase Storage: studio-assets/voice-audio/${item.content_code}/...
+        if (!resolvedVoicePath) {
+          try {
+            const { data: cloudVoiceList } = await supabase.storage
+              .from('studio-assets')
+              .list(`voice-audio/${item.content_code}`);
+            if (cloudVoiceList && cloudVoiceList.length > 0) {
+              const cloudVoiceName = cloudVoiceList[0].name;
+              const { data: blob } = await supabase.storage
+                .from('studio-assets')
+                .download(`voice-audio/${item.content_code}/${cloudVoiceName}`);
+              if (blob) {
+                const dlBuffer = Buffer.from(await blob.arrayBuffer());
+                if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+                const dlPath = path.join(mediaDir, `${item.content_code}_VOICE_${cloudVoiceName}`);
+                fs.writeFileSync(dlPath, dlBuffer);
+                resolvedVoicePath = dlPath;
+                console.log(`   ☁️  Berhasil mengunduh voice audio dari Supabase Storage: ${cloudVoiceName}`);
+              }
+            }
+          } catch {}
+        }
+
+        // 3. Jika belum ada, otomatis generate on the fly via Gemini TTS / ElevenLabs!
+        if (!resolvedVoicePath && (env.GEMINI_API_KEY || env.ELEVENLABS_API_KEY)) {
+          console.log(`   ✨ [Auto-Pilot Fase 2] Men-generate audio naskah Obim secara realtime...`);
+          const synthRes = await synthesizeVoiceOnDemand(item, env);
+          if (synthRes) {
+            const mediaDir = path.join(ROOT_DIR, '.data', 'media');
+            if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+            const localAudioName = `${item.content_code}_VOICE_${Date.now()}.${synthRes.ext}`;
+            const localAudioPath = path.join(mediaDir, localAudioName);
+            fs.writeFileSync(localAudioPath, synthRes.buffer);
+            resolvedVoicePath = localAudioPath;
+
+            // Unggah ke Supabase Storage agar permanen di cloud
+            const cloudAudioPath = `voice-audio/${item.content_code}/${localAudioName}`;
+            await supabase.storage.from('studio-assets').upload(cloudAudioPath, synthRes.buffer, {
+              upsert: true,
+              contentType: synthRes.mimeType,
+            });
+
+            // Update/Insert ke Supabase assets
+            const newVoiceAssetId = voiceAsset ? voiceAsset.id : crypto.randomUUID();
+            await supabase.from('assets').upsert({
+              id: newVoiceAssetId,
+              owner_id: item.owner_id,
+              content_id: item.id,
+              asset_type: 'voice_audio',
+              storage_path: localAudioPath,
+              original_filename: `${item.content_code}_VOICE.${synthRes.ext}`,
+              mime_type: synthRes.mimeType,
+              size_bytes: synthRes.buffer.byteLength,
+              duration_ms: Math.round(synthRes.buffer.byteLength / 48),
+              checksum: crypto.createHash('sha256').update(synthRes.buffer).digest('hex').slice(0, 16),
+              metadata: {
+                providerKey: synthRes.provider,
+                cloudStoragePath: cloudAudioPath,
+                timestampStatus: 'estimated',
+                generatedAt: new Date().toISOString(),
+              },
+            });
+            console.log(`   ✅ Audio voice over Obim selesai dibuat & diunggah ke cloud!`);
+          }
+        }
+
+        if (resolvedVoicePath) {
+          effectiveVoiceAsset = {
+            id: voiceAsset ? voiceAsset.id : crypto.randomUUID(),
+            storage_path: resolvedVoicePath,
+            asset_type: 'voice_audio',
+          };
+        }
+      }
+
+      if (resolvedVoicePath && effectiveVoiceAsset) {
+        console.log(`\n🎉 Konten [${item.content_code}] ${item.title}: KLIP LENGKAP + VOICE AUDIO SIAP!`);
         console.log(`   🔨 Memulai auto-assembly FFmpeg 9:16...`);
 
         // Panggil FFmpeg perakitan video
         const cleanTitle = (item.title || 'video').replace(/[^a-zA-Z0-9_-]/g, '_');
         const masterVideoPath = path.join(OWNER_MASTER_DIR, `${item.content_code}_${cleanTitle}_00Final.mp4`);
 
-        const success = assembleFinalVideo(item, scenes, uploadedClips, voiceAsset, masterVideoPath);
+        const success = assembleFinalVideo(item, scenes || [], uploadedClips, effectiveVoiceAsset, masterVideoPath);
         if (success) {
           const masterBuffer = fs.readFileSync(masterVideoPath);
 
@@ -505,6 +745,12 @@ async function runSupabaseMigration() {
             },
           });
 
+          // Update status konten di Supabase menjadi ready_for_publishing
+          await supabase
+            .from('content_items')
+            .update({ content_status: 'ready_for_publishing' })
+            .eq('id', item.id);
+
           assembledList.push({
             code: item.content_code,
             title: item.title,
@@ -513,7 +759,7 @@ async function runSupabaseMigration() {
           });
           console.log(`   ✨ Master 00Final.mp4 BERHASIL DIRAKIT: ${masterVideoPath}`);
 
-          // 3. HAPUS BAGIAN-BAGIAN VIDEO DARI LAPTOP SETELAH FINAL TERUPLOAD KE CLOUD
+          // 3. HAPUS BAGIAN-BAGIAN VIDEO DARI LAPTOP SETELAH FINAL TERUPLOAD KE CLOUD (Zero-Disk Bloat)
           console.log(`   🧹 [Zero-Disk Cleanup] Membersihkan klip bagian lokal ${item.content_code} dari KLIP_BERSIH...`);
           let deletedCount = 0;
           for (const clip of uploadedClips) {
@@ -573,21 +819,36 @@ async function runSupabaseMigration() {
 function assembleFinalVideo(item, scenes, clipAssets, voiceAsset, outputPath) {
   try {
     const ffmpegBin = getFfmpegBinary();
-    const sortedScenes = [...scenes].sort((a, b) => a.scene_index - b.scene_index);
 
-    // Filter klip yang terurut sesuai urutan adegan
-    const orderedClips = [];
-    for (const sc of sortedScenes) {
-      const clip = clipAssets.find((c) => c.scene_id === sc.id);
-      if (clip && fs.existsSync(clip.storage_path)) {
-        orderedClips.push(clip.storage_path);
+    // Kumpulkan seluruh berkas klip video fisik yang tersedia untuk konten ini
+    const clipMap = new Map();
+    for (const c of clipAssets) {
+      if (!c.storage_path || !fs.existsSync(c.storage_path)) continue;
+
+      let partNum = null;
+      const m = c.storage_path.match(/(?:Bagian_0*(\d+)|_(\d+)\.mp4$)/i);
+      if (m) {
+        partNum = parseInt(m[1] || m[2], 10);
+      } else if (c.scene_id && Array.isArray(scenes)) {
+        const sc = scenes.find((s) => s.id === c.scene_id);
+        if (sc) partNum = sc.scene_index;
+      }
+
+      if (partNum && !clipMap.has(partNum)) {
+        clipMap.set(partNum, c.storage_path);
       }
     }
 
-    if (orderedClips.length !== sortedScenes.length) {
-      console.warn('   ⚠️ Tidak semua file klip adegan ditemukan secara fisik.');
+    // Urutkan klip berdasarkan nomor bagian (1, 2, 3...)
+    const sortedParts = Array.from(clipMap.keys()).sort((a, b) => a - b);
+    const orderedClips = sortedParts.map((p) => clipMap.get(p));
+
+    if (orderedClips.length === 0) {
+      console.warn('   ⚠️ Tidak ada file klip adegan yang ditemukan secara fisik di laptop.');
       return false;
     }
+
+    console.log(`   🎬 Merangkai ${orderedClips.length} bagian video (${sortedParts.map((p) => `Bagian ${p}`).join(', ')}) dengan audio voice over...`);
 
     // Buat concat manifest file temporer
     const concatListPath = path.resolve(STORAGE_DROPS_DIR, `concat_${item.content_code}_${Date.now()}.txt`);

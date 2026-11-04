@@ -11,6 +11,7 @@ import {
   ContentItemUpdateSchema,
 } from "@/lib/validation/schemas";
 import { findDuplicateTopicWarnings } from "@/features/content-library/duplicate-detector";
+import { runAutopilotCycle } from "@/lib/services/autopilot-orchestrator";
 
 export async function GET(request: Request) {
   const owner = await getAuthorizedOwner({
@@ -78,6 +79,12 @@ export async function POST(request: Request) {
     );
 
     const created = await createContentItem(owner.ownerId, parsed.data);
+
+    // Auto-trigger Fase 2: Generate TTS voice, alignment timestamps & visual scene prompts asynchronously
+    runAutopilotCycle(owner.ownerId).catch((err) => {
+      console.warn("Background auto-voice trigger warning:", err);
+    });
+
     return NextResponse.json(
       {
         item: created,
