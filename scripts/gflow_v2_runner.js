@@ -192,7 +192,7 @@ async function uploadObimAsset() {
   runClickTool('-ClickIAgree');
   await delay(3500);
 
-  console.log(`   [ASET 5/5] Mengeklik kanvas kosong untuk menutup panel upload...`);
+  console.log(`   [ASET 5/5] Menutup panel upload via tombol ESC...`);
   runClickTool('-ClickEmptySpace');
   await delay(1200);
 

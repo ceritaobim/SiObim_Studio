@@ -253,18 +253,17 @@ if ($ClickIAgree) {
   exit 0
 }
 
-# 7. Klik area kanvas kosong untuk menutup panel flyout
+# 7. Menutup panel flyout aset via tombol Escape (ESC)
 if ($ClickEmptySpace) {
-  $X = [int]($screenWidth * 0.30)
-  $Y = [int]($screenHeight * 0.40)
-
-  [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($X, $Y)
-  Start-Sleep -Milliseconds 150
-  [WinMouse.U32]::mouse_event(0x02, 0, 0, 0, 0)
-  Start-Sleep -Milliseconds 80
-  [WinMouse.U32]::mouse_event(0x04, 0, 0, 0, 0)
+  $null = $ws.AppActivate('Google Flow')
+  $null = $ws.AppActivate('Chrome')
   Start-Sleep -Milliseconds 200
-  Write-Host "SUCCESS: Dismissed panel"
+
+  # Kirim tombol Escape untuk menutup popup/flyout seketika
+  $ws.SendKeys('{ESC}')
+  Start-Sleep -Milliseconds 300
+
+  Write-Host "SUCCESS: Dismissed upload popup via Escape (ESC) key"
   exit 0
 }
 

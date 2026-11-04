@@ -200,13 +200,14 @@ async function main() {
     runClickTool('-ClickIAgree');
     await delay(3500);
 
-    console.log(`   5. Menutup panel flyout aset...`);
+    console.log(`   5. Menutup panel flyout aset via tombol ESC...`);
     runClickTool('-ClickEmptySpace');
     await delay(1200);
 
     console.log('\n================================================================');
     console.log('🔍 HASIL LANGKAH 3:');
     console.log('   • Apakah gambar obim.jpg sudah muncul di kanvas project?');
+    console.log('   • Apakah panel upload sudah tertutup bersih via tombol ESC?');
     console.log('================================================================\n');
     return;
   }
