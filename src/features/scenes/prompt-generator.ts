@@ -236,15 +236,16 @@ export function buildProjectAndPartPrompts(
     `Content Code : ${content.contentCode}`,
     `Judul Konten : ${content.title}`,
     `Topik        : ${content.topic}`,
-    `Format Video : Vertical ${settings.outputAspectRatio} (${settings.outputWidth}x${settings.outputHeight}) Stop-Motion Origami Kertas (Model: Omni 1.1 Flash)`,
+    `Format Video : Vertical 9:16 (${settings.outputWidth}x${settings.outputHeight}) Stop-Motion Origami Kertas (Model: Omni 1.1 Flash • Durasi: 8-10 Detik Saja)`,
     ``,
     `[ATURAN PENAMAAN OUTPUT WAJIB]`,
     `- Setiap video yang dihasilkan WAJIB dinamai dan diberi label sesuai judul dan bagian: "${safeTitle} - Bagian [Nomor]" (contoh: "${safeTitle} - Bagian 1", "${safeTitle} - Bagian 2", ... hingga "${safeTitle} - Bagian ${sorted.length}").`,
     `- DILARANG KERAS memberi nama acak atau deskriptif saja. Nama output HARUS selalu persis berformat: "${safeTitle} - Bagian [Nomor]".`,
     ``,
-    `[ATURAN MODEL AI & DURASI WAJIB — OMNI 1.1 FLASH]`,
-    `- Model AI Video: WAJIB menggunakan Omni 1.1 Flash (mendukung durasi resmi 10 detik dan 8 detik).`,
-    `- Durasi Output: Setiap video memiliki durasi resmi 10 detik (atau 8 detik pada adegan penutup).`,
+    `[ATURAN MODEL AI & DURASI WAJIB — OMNI 1.1 FLASH (8-10 DETIK SAJA & 9:16)]`,
+    `- Model AI Video: WAJIB HANYA menggunakan Omni 1.1 Flash. DILARANG menggunakan model lain!`,
+    `- Ukuran Video: WAJIB Vertical 9:16 (${settings.outputWidth}x${settings.outputHeight}) layar penuh tanpa black bars.`,
+    `- Durasi Output: Setiap video WAJIB berdurasi 8-10 detik saja (10 detik atau 8 detik). DILARANG di bawah 8 detik atau di atas 10 detik.`,
     `- Kelanjutan Visual: Jika ucapan narasi selesai lebih awal dari durasi klip, karakter origami tetap bergerak dan berpose natural hingga durasi video selesai.`,
     ``,
     `[ATURAN TEMPO TINGGI & ANTI-SLOW MOTION — RETENSI TINGGI 9:16]`,
@@ -272,7 +273,7 @@ export function buildProjectAndPartPrompts(
     ...detailedPartBlocks,
   ].join("\n");
 
-  const projectPrompt = `${baseUnifiedPrompt}\n\nINSTRUKSI EKSEKUSI: Kerjakan semua bagian secara berurutan menggunakan model Veo 3.1 - Lite (atau Omni 1.1 Flash) (9:16 vertikal) dan namai setiap output dengan "${safeTitle} - Bagian 1", "${safeTitle} - Bagian 2", dst.`;
+  const projectPrompt = `${baseUnifiedPrompt}\n\nINSTRUKSI EKSEKUSI: Kerjakan semua bagian secara berurutan HANYA menggunakan model Omni 1.1 Flash (durasi 8-10 detik saja, 9:16 vertikal) dan namai setiap output dengan "${safeTitle} - Bagian 1", "${safeTitle} - Bagian 2", dst.`;
 
   const partPrompts = sorted.map((sc) => {
     const startSec = Math.round(sc.startMs / 1000);
@@ -292,8 +293,8 @@ export function buildProjectAndPartPrompts(
     const outputLabel = `${safeTitle} - Bagian ${sc.sceneIndex}`;
     const partExecution =
       sc.sceneIndex === 1
-        ? `Kerjakan bagian 1 (HIGH-IMPACT KINETIC HOOK) saja menggunakan model Omni 1.1 Flash (9:16 vertikal) berdurasi ${durationSec} detik dan namai output dengan "${outputLabel}". Pastikan berupa KLIP VIDEO aksi kinetik stop-motion kertas origami yang sangat memikat di detik pertama (NO banner, NO text, NO subtitles).`
-        : `Kerjakan bagian ${sc.sceneIndex} saja menggunakan model Omni 1.1 Flash (9:16 vertikal) berdurasi ${durationSec} detik dan namai output dengan "${outputLabel}". (NO subtitles, NO text).`;
+        ? `Kerjakan bagian 1 (HIGH-IMPACT KINETIC HOOK) saja HANYA menggunakan model Omni 1.1 Flash (9:16 vertikal, durasi 8-10 detik saja) berdurasi ${durationSec} detik dan namai output dengan "${outputLabel}". Pastikan berupa KLIP VIDEO aksi kinetik stop-motion kertas origami yang sangat memikat di detik pertama (NO banner, NO text, NO subtitles).`
+        : `Kerjakan bagian ${sc.sceneIndex} saja HANYA menggunakan model Omni 1.1 Flash (9:16 vertikal, durasi 8-10 detik saja) berdurasi ${durationSec} detik dan namai output dengan "${outputLabel}". (NO subtitles, NO text).`;
 
     return {
       partIndex: sc.sceneIndex,
@@ -385,15 +386,16 @@ export function buildMultiScenePrompt(
     `Content Code : ${content.contentCode}`,
     `Judul Konten : ${content.title}`,
     `Topik        : ${content.topic}`,
-    `Format Video : Vertical ${settings.outputAspectRatio} (${settings.outputWidth}x${settings.outputHeight}) (Model: Omni 1.1 Flash)`,
+    `Format Video : Vertical 9:16 (${settings.outputWidth}x${settings.outputHeight}) (Model: Omni 1.1 Flash • Durasi: 8-10 Detik Saja)`,
     ``,
     `[ATURAN PENAMAAN OUTPUT WAJIB]`,
     `- Setiap video yang dihasilkan WAJIB dinamai dan diberi label persis: "${safeTitle} - Bagian [Nomor]".`,
     `- DILARANG KERAS memberi nama acak atau deskriptif saja. Cantumkan selalu "${safeTitle} - Bagian [Nomor]" agar urutan file tidak tertukar saat diunduh.`,
     ``,
-    `[ATURAN MODEL AI & DURASI WAJIB — OMNI 1.1 FLASH]`,
-    `- Model AI Video: WAJIB menggunakan Omni 1.1 Flash (mendukung durasi resmi 10 detik dan 8 detik).`,
-    `- Durasi Output: Setiap video memiliki durasi resmi 10 detik (atau 8 detik pada adegan penutup).`,
+    `[ATURAN MODEL AI & DURASI WAJIB — OMNI 1.1 FLASH (8-10 DETIK SAJA & 9:16)]`,
+    `- Model AI Video: WAJIB HANYA menggunakan Omni 1.1 Flash. DILARANG menggunakan model lain!`,
+    `- Format Rasio: WAJIB Vertical 9:16 (${settings.outputWidth}x${settings.outputHeight}) layar penuh.`,
+    `- Durasi Output: Setiap video WAJIB berdurasi 8-10 detik saja (10 detik atau 8 detik). DILARANG di bawah 8 detik atau di atas 10 detik.`,
     `- Kelanjutan Visual: Jika ucapan narasi selesai lebih awal dari durasi klip, karakter origami tetap bergerak dan berpose natural hingga durasi video selesai.`,
     ``,
     `[ATURAN TEMPO TINGGI & ANTI-SLOW MOTION — RETENSI TINGGI 9:16]`,
@@ -416,7 +418,7 @@ export function buildMultiScenePrompt(
     ...targetDescriptions,
     ``,
     `[INSTRUKSI EKSEKUSI WAJIB — KERJAKAN ${targetScenes.length} BAGIAN SEKALIGUS]`,
-    `Kerjakan ${targetScenes.length} bagian di atas (${partNamesList}) SEKALIGUS menggunakan model Omni 1.1 Flash dalam bentuk ${targetScenes.length} KLIP VIDEO vertikal 9:16 stop-motion origami kertas.`,
+    `Kerjakan ${targetScenes.length} bagian di atas (${partNamesList}) SEKALIGUS HANYA menggunakan model Omni 1.1 Flash dalam bentuk ${targetScenes.length} KLIP VIDEO vertikal 9:16 berdurasi 8-10 detik saja stop-motion origami kertas.`,
     `Setiap klip video yang dihasilkan WAJIB dinamai dan diberi label PERSIS sebagai berikut:`,
     outputRequirements,
     ``,
@@ -516,14 +518,14 @@ export function exportPromptPackAsTxt(
 
   const header = [
     `================================================================================`,
-    `CERITAOBIM STUDIO — TRANSKRIP AUDIO & PROMPT PROJECT / PER BAGIAN (Semi-Manual Google Flow)`,
+    `CERITAOBIM STUDIO — TRANSKRIP AUDIO & PROMPT PROJECT / PER BAGIAN (Semi-Manual Google Flow — Omni 1.1 Flash 9:16 • 8-10s Saja)`,
     `Content ID : ${content.contentCode}`,
     `Title      : ${content.title}`,
     `Topic      : ${content.topic}`,
-    `Total Bagian: ${sorted.length} Bagian (Maksimal 10 Detik / Bagian)`,
+    `Total Bagian: ${sorted.length} Bagian (Model: Omni 1.1 Flash • Durasi: 8-10 Detik Saja / Bagian • Format: 9:16 Vertikal)`,
     `================================================================================`,
     ``,
-    `1. TRANSKRIP AUDIO DENGAN TIMESTAMP (PER <= 10 DETIK):`,
+    `1. TRANSKRIP AUDIO DENGAN TIMESTAMP (PER 8-10 DETIK):`,
     `--------------------------------------------------------------------------------`,
     transcriptBlock,
     ``,

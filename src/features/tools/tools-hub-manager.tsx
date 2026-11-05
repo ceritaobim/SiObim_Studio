@@ -56,6 +56,7 @@ export function ToolsHubManager() {
   const TOOL_ICONS: Record<string, React.ReactNode> = {
     gemini: <Sparkles className="h-5 w-5 text-indigo-600" />,
     elevenlabs: <Mic className="h-5 w-5 text-amber-600" />,
+    flow: <Film className="h-5 w-5 text-rose-600" />,
     buffer: <Send className="h-5 w-5 text-blue-600" />,
     gdrive: <FolderSync className="h-5 w-5 text-emerald-600" />,
     ffmpeg: <Cpu className="h-5 w-5 text-purple-600" />,
@@ -76,7 +77,7 @@ export function ToolsHubManager() {
             </h2>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            Pantau status koneksi, kuota, dan kinerja 6 engine utama CeritaObim Studio dalam satu layar.
+            Pantau status koneksi, kuota, dan spesifikasi 7 engine utama CeritaObim Studio (Model Video: Omni 1.1 Flash 8-10s • 9:16).
           </p>
         </div>
 

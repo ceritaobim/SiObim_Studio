@@ -67,10 +67,8 @@ function buildTranscriptAndPromptsFromScenes(
   const detailedPartBlocks = sorted.map((sc) => {
     const startSec = Math.round(sc.startMs / 1000);
     const endSec = Math.round(sc.endMs / 1000);
-    const durationSec = Math.max(
-      1,
-      Math.min(10, endSec - startSec || Math.round(sc.durationMs / 1000))
-    );
+    const rawDur = Math.max(1, endSec - startSec || Math.round(sc.durationMs / 1000));
+    const durationSec = rawDur >= 9 ? 10 : 8;
     const paddedIdx = String(sc.sceneIndex).padStart(3, "0");
     const expectedFilename =
       sc.expectedFilename ||
@@ -97,11 +95,17 @@ function buildTranscriptAndPromptsFromScenes(
     `Content Code : ${item.contentCode}`,
     `Judul Konten : ${item.title}`,
     `Topik        : ${item.topic}`,
-    `Format Video : Vertical 9:16 (1080x1920) • Maksimal 10 Detik per Bagian`,
+    `Format Video : Vertical 9:16 (1080x1920) • Model: Omni 1.1 Flash (Durasi: 8-10 Detik Saja per Bagian)`,
     ``,
     `[ATURAN PENAMAAN OUTPUT WAJIB]`,
     `- Setiap video yang dihasilkan WAJIB dinamai dan diberi label secara berurutan: "Bagian 1", "Bagian 2", ... hingga "Bagian ${sorted.length}".`,
     `- JANGAN beri nama acak atau deskriptif saja. Cantumkan selalu kata "Bagian [Nomor]" agar urutan file tidak tertukar saat diunduh.`,
+    ``,
+    `[ATURAN MODEL AI & DURASI WAJIB — OMNI 1.1 FLASH (8-10 DETIK SAJA & 9:16)]`,
+    `- Model AI Video: WAJIB HANYA menggunakan Omni 1.1 Flash. DILARANG menggunakan model lain!`,
+    `- Format Rasio: WAJIB Vertical 9:16 (1080x1920) layar penuh.`,
+    `- Durasi Output: Setiap video WAJIB berdurasi 8-10 detik saja (10 detik atau 8 detik). DILARANG di bawah 8 detik atau di atas 10 detik.`,
+    `- Kelanjutan Visual: Jika ucapan narasi selesai lebih awal dari durasi klip, karakter origami tetap bergerak dan berpose natural hingga durasi video selesai.`,
     ``,
     `[ATURAN VISUAL & KARAKTER WAJIB]`,
     `- Gaya Visual: Handmade folded matte origami paper stop-motion world, tactile paper creases, warm miniature studio lighting, 9:16 vertical.`,
@@ -132,7 +136,7 @@ function buildTranscriptAndPromptsFromScenes(
       )
     : fallbackBasePrompt;
 
-  const projectPrompt = `${basePrompt}\n\nINSTRUKSI EKSEKUSI: Kerjakan semua bagian secara berurutan dan namai setiap output dengan "Bagian 1", "Bagian 2", dst.`;
+  const projectPrompt = `${basePrompt}\n\nINSTRUKSI EKSEKUSI: Kerjakan semua bagian secara berurutan HANYA menggunakan model Omni 1.1 Flash (durasi 8-10 detik saja, 9:16 vertikal) dan namai setiap output dengan "Bagian 1", "Bagian 2", dst.`;
 
   const getPartPrompt = (sc: SceneRecord) => {
     const saved = sc.promptText?.trim() || "";
@@ -142,7 +146,7 @@ function buildTranscriptAndPromptsFromScenes(
     ) {
       return saved;
     }
-    return `${basePrompt}\n\nINSTRUKSI EKSEKUSI: Kerjakan bagian ${sc.sceneIndex} saja dan namai output dengan "Bagian ${sc.sceneIndex}".`;
+    return `${basePrompt}\n\nINSTRUKSI EKSEKUSI: Kerjakan bagian ${sc.sceneIndex} saja HANYA menggunakan model Omni 1.1 Flash (durasi 8-10 detik saja, 9:16 vertikal) dan namai output dengan "Bagian ${sc.sceneIndex}".`;
   };
 
   return {
@@ -361,7 +365,7 @@ export function VideoTableManager({
 
       setFeedback({
         type: "success",
-        text: `Berhasil! Audio ${item.contentCode} ditranskrip ulang menjadi ${updatedScenes.length} Bagian (≤10 detik/bagian). Prompt Project (Kerjakan semua bagian) OTOMATIS TERSALIN ke clipboard! Siap dipaste ke Google Flow.`,
+        text: `Berhasil! Audio ${item.contentCode} ditranskrip ulang menjadi ${updatedScenes.length} Bagian (8–10 detik/bagian). Prompt Project (Kerjakan semua bagian) OTOMATIS TERSALIN ke clipboard! Siap dipaste ke Google Flow.`,
       });
     } catch (err) {
       setFeedback({
@@ -576,14 +580,14 @@ export function VideoTableManager({
           <div className="flex flex-wrap items-center gap-2">
             <Film className="h-4 w-4 text-emerald-600" />
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-              Alur Kerja Tahap 3–5: Transkrip Audio (≤10s) → Prompt Project & Prompt Per Bagian (Google Flow)
+              Alur Kerja Tahap 3–5: Transkrip Audio (8–10s) → Prompt Project & Prompt Per Bagian (Omni 1.1 Flash • 9:16)
             </span>
           </div>
           <h1 className="mt-1 text-base font-bold text-stone-900 sm:text-lg">
-            Transkrip Audio (≤10 Detik) & Generator Prompt Video (Google Flow / Veo)
+            Transkrip Audio (8–10 Detik Saja) & Generator Prompt Video (Google Flow / Omni 1.1 Flash • 9:16)
           </h1>
           <p className="text-xs text-stone-500">
-            Audio ditranskrip ulang per jeda kalimat (maksimal <strong>10 detik per bagian</strong>: <code>Bagian 1 [0-9]</code>, <code>Bagian 2 [10-19]</code>, dst.). Gunakan <strong>Copy Prompt Project</strong> (<em>&ldquo;Kerjakan semua bagian&rdquo;</em>) atau <strong>Copy Prompt Bagian X</strong> (<em>&ldquo;Kerjakan bagian X saja&rdquo;</em>) untuk dipaste ke Google Flow.
+            Audio ditranskrip ulang per bagian (<strong>8–10 detik saja</strong>, rasio <strong>9:16</strong> vertikal dengan model <strong>Omni 1.1 Flash</strong>). Gunakan <strong>Copy Prompt Project</strong> (<em>&ldquo;Kerjakan semua bagian&rdquo;</em>) atau <strong>Copy Prompt Bagian X</strong> (<em>&ldquo;Kerjakan bagian X saja&rdquo;</em>) untuk dipaste ke Google Flow.
           </p>
         </div>
 
@@ -1247,7 +1251,7 @@ function VideoContentRow({
                                 {Math.round(clip.durationMs / 1000) !== durationSec ? (
                                   <span
                                     className="inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-800 border border-amber-200 max-w-[140px]"
-                                    title={`Google Flow merender klip ${Math.round(clip.durationMs / 1000)} detik (standar Veo). Sistem otomatis memotong tepat ${durationSec}s saat 00Final dirakit agar visual dan narasi sinkron sempurna.`}
+                                    title={`Google Flow merender klip ${Math.round(clip.durationMs / 1000)} detik (standar Omni 1.1 Flash 8-10s). Sistem otomatis memotong tepat ${durationSec}s saat 00Final dirakit agar visual dan narasi sinkron sempurna.`}
                                   >
                                     ✂️ Auto-cut ke {durationSec}s di 00Final
                                   </span>

@@ -635,6 +635,7 @@ export function resolveDirectStudioQuery(
         `🎬 <b>Produser Studio:</b>\n` +
         `• 📹 <b>Video Final:</b> 18 Master MP4 terakit siap tayang\n` +
         `• 📐 <b>Format Visual:</b> 9:16 Vertikal (Handmade Folded Matte Paper)\n` +
+        `• ⚡ <b>Model Video AI:</b> Omni 1.1 Flash (Durasi 8-10 Detik Saja)\n` +
         `• 🚫 <b>Filter:</b> 100% Bebas Teks di layar (No Subtitles, No Banner)\n` +
         `• 🎯 <b>Referensi Karakter:</b> Master_SiObim.png terkunci`,
     };

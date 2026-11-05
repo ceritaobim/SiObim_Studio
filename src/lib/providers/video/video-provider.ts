@@ -67,7 +67,7 @@ export class SafeVideoProviderAdapter implements VideoProvider {
       ? "official-video-api-adapter"
       : "google-flow-semi-manual";
     this.modelName =
-      process.env.VIDEO_PROVIDER_MODEL || "veo-origami-9x16-manual-pack";
+      process.env.VIDEO_PROVIDER_MODEL || "omni-1-1-flash-origami-9x16";
   }
 
   getCapabilities(): VideoProviderCapabilities {

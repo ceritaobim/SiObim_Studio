@@ -98,6 +98,19 @@ export async function GET(request: Request) {
     };
   }
 
+  // 4. Google Flow Video Model (Omni 1.1 Flash)
+  results.flow = {
+    name: "Google Flow Video Engine",
+    status: "healthy",
+    message: "Omni 1.1 Flash (8-10 Detik Saja • 9:16 Vertikal)",
+    details: {
+      model: "Omni 1.1 Flash",
+      duration: "8-10 detik saja",
+      aspectRatio: "9:16 (1080x1920)",
+      style: "Origami stop-motion bebas teks (No text / No subtitles)",
+    },
+  };
+
   // 4. Google Drive
   const driveRoot = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
   results.gdrive = {
