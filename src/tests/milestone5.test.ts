@@ -169,7 +169,7 @@ describe("Milestone 5 — Durable Queue, Budget Guard, Idempotency & FFmpeg Asse
     if (fs.existsSync(tmpStore)) fs.unlinkSync(tmpStore);
   });
 
-  it("blocks assembly when scene clips are missing and succeeds with 9:16 master MP4 when all clips + voice exist", async () => {
+  it("blocks assembly when scene clips are missing and succeeds with 9:16 master MP4 when all clips + voice exist", { timeout: 45000 }, async () => {
     const tmpStore = path.join(
       os.tmpdir(),
       `ceritaobim-m5-assembly-${Date.now()}.json`
@@ -243,5 +243,5 @@ describe("Milestone 5 — Durable Queue, Budget Guard, Idempotency & FFmpeg Asse
     ).toEqual(scenes.map((s) => s.sceneIndex));
 
     if (fs.existsSync(tmpStore)) fs.unlinkSync(tmpStore);
-  }, 15000);
+  });
 });

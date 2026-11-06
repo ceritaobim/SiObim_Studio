@@ -13,6 +13,7 @@ import {
   evaluateClipCompleteness,
   matchBatchFilesToScenes,
 } from "@/features/video-generation/clip-matcher";
+import { runTwoStepClipMigration } from "@/lib/services/clip-migration-engine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -66,34 +67,17 @@ async function executeMacroDropSync(ownerId: string) {
     }
   } catch {}
 
-  // 0b. Auto-move any downloaded clips (pzxc_* or AI descriptive titles) from Windows Downloads folder into storage/macro_drops
+  // 0b. Jalankan migrasi 2-langkah: Deteksi format baku, rename file mentah, dan tangani duplikat di folder Downloads
+  let migrationReport: Awaited<ReturnType<typeof runTwoStepClipMigration>> | null = null;
   try {
-    const userDownloadsDir = path.join(process.env.USERPROFILE || "", "Downloads");
-    if (fs.existsSync(userDownloadsDir)) {
-      const dlEntries = fs.readdirSync(userDownloadsDir, { withFileTypes: true });
-      for (const de of dlEntries) {
-        const lower = de.name.toLowerCase();
-        const isTargetVideo =
-          de.isFile() &&
-          (lower.endsWith(".mp4") || lower.endsWith(".webm")) &&
-          (lower.startsWith("pzxc_") ||
-            lower.startsWith("papercraft_boy") ||
-            lower.startsWith("paper_boy") ||
-            lower.startsWith("boy_") ||
-            lower.includes("origami_bee") ||
-            lower.includes("teacup") ||
-            lower.includes("drinks") ||
-            lower.includes("forest"));
-
-        if (isTargetVideo) {
-          const src = path.join(userDownloadsDir, de.name);
-          const dest = path.join(dropDir, de.name);
-          fs.copyFileSync(src, dest);
-          fs.unlinkSync(src);
-        }
-      }
-    }
-  } catch {}
+    migrationReport = await runTwoStepClipMigration({
+      ownerId,
+      cleanClipsDir,
+      skipAssembly: false,
+    });
+  } catch (err) {
+    console.error("[MIGRATION_ENGINE_ERROR]", err);
+  }
 
   // 1. Scan for all .mp4 files in storage/macro_drops (skip subfolders)
   const entries = fs.readdirSync(dropDir, { withFileTypes: true });
@@ -493,6 +477,7 @@ async function executeMacroDropSync(ownerId: string) {
     unmatchedCount: unmatchedFiles.length,
     unmatchedFiles,
     dropFolder: dropDir,
+    migrationReport,
     autopilot: autopilotSummary,
     message: `Berhasil memproses ${ingestedClips.length} klip video dari dropzone. ${
       assembledVideos.length > 0

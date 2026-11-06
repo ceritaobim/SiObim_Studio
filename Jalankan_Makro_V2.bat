@@ -293,11 +293,11 @@ goto SCENARIO_MENU
 :RUN_SYNC_DOWNLOADS
 cls
 echo ===============================================================================
-echo   [SINKRONISASI] MEMINDAHKAN FILE DOWNLOADS KE 00.FolderOwner\KLIP_BERSIH...
+echo   [SINKRONISASI] MIGRASI 2-LANGKAH + DETEKSI DUPLIKAT KLIP DOWNLOADS
 echo ===============================================================================
 echo.
 cd /d "%~dp0"
-node scripts\macro-worker.js --sync
+call npx tsx scripts\run_migration_tsx.ts
 echo.
 pause
 goto SCENARIO_MENU

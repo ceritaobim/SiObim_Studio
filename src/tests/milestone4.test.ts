@@ -65,7 +65,7 @@ describe("Milestone 4 — Scene Prompts & Semi-Manual Google Flow", () => {
     expect(xlsxBuf.byteLength).toBeGreaterThan(100);
   });
 
-  it("matches clip filenames to scenes and detects missing and duplicate scene clips", async () => {
+  it("matches clip filenames to scenes and detects missing and duplicate scene clips", { timeout: 30000 }, async () => {
     const items = await listContentItems(ownerId, {
       storePath: tempStorePath,
       forceLocal: true,

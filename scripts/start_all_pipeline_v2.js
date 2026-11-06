@@ -137,7 +137,7 @@ async function main() {
   console.log('===============================================================================');
 
   try {
-    execSync(`node "${path.resolve(__dirname, 'macro-worker.js')}" --sync`, { stdio: 'inherit' });
+    execSync(`npx tsx "${path.resolve(__dirname, 'run_migration_tsx.ts')}"`, { stdio: 'inherit' });
   } catch (err) {
     console.error('❌ Terjadi kendala saat migrasi klip:', err.message);
   }
