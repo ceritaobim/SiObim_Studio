@@ -312,10 +312,25 @@ export function VirtualOfficeView() {
     }
   }, [showToast, applySyncData]);
 
-  // Send low-credit editors to walk to the lounge
+  // Send all video editors to walk to the lounge chairs
   const handleSendExhaustedToLounge = useCallback(async () => {
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.teamId === "video-prod" && !m.isLead) {
+          return {
+            ...m,
+            credits: 0,
+            status: "resting",
+            currentPosition: m.loungePosition,
+            currentTask: "Istirahat di Lounge Warkop Obim",
+          };
+        }
+        return m;
+      })
+    );
+
     showToast(
-      "☕ Anggota tim yang kelelahan berjalan menuju Warkop Obim & duduk di kursi istirahat!"
+      "☕ Seluruh 11 Editor Video meninggalkan PC dan berjalan menuju kursi istirahat di Lounge Warkop Obim!"
     );
 
     try {

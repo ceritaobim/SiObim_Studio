@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { listFlowProfileAccounts } from "@/lib/providers/flow-accounts-service";
 import {
+  loadVirtualOfficeCloudSync,
+  persistVirtualOfficeCloudSync,
   readVirtualOfficeSyncState,
   recordVirtualOfficeEvent,
   saveVirtualOfficeSyncState,
-  syncUpdateProfileCredits,
+  syncUpdateProfileCreditsAsync,
 } from "@/lib/services/virtual-office-sync";
 import {
   getStudioStoreSnapshot,
@@ -104,9 +106,8 @@ function stripHtmlTags(html: string): string {
 
 export async function GET() {
   try {
-    const [accounts, syncState, snapshot] = await Promise.all([
-      Promise.resolve(listFlowProfileAccounts()),
-      Promise.resolve(readVirtualOfficeSyncState()),
+    const [{ accounts, syncState }, snapshot] = await Promise.all([
+      loadVirtualOfficeCloudSync(),
       getStudioStoreSnapshot().catch(() => null),
     ]);
 
@@ -151,25 +152,24 @@ export async function POST(request: Request) {
     if (action === "update_credit") {
       const bulkAction = body.bulkAction ? String(body.bulkAction) : undefined;
       let credits = typeof body.credits === "number" ? body.credits : 50;
-      let profileIndex =
+      const profileIndex =
         typeof body.profileIndex === "number" ? body.profileIndex : undefined;
       let allProfiles = Boolean(body.allProfiles);
       let message = "";
 
-      if (bulkAction === "refill_all") {
+      if (bulkAction === "refill_all" || bulkAction === "standby_all") {
         allProfiles = true;
         credits = 50;
         message =
-          "🔋 Seluruh 11 Profil Chrome telah diisi ulang menjadi 50/50 credits! Semua tim kembali ke meja kerja.";
-      } else if (bulkAction === "evacuate_lounge") {
-        const currentAccounts = listFlowProfileAccounts().slice(0, 11);
-        const lowAcc = currentAccounts.find((a) => a.credits > 0 && a.credits <= 25);
-        profileIndex = lowAcc ? lowAcc.index : 2;
+          "💻 Seluruh 11 Editor Video telah kembali standby ke PC masing-masing (50/50 kr)!";
+      } else if (bulkAction === "evacuate_lounge" || bulkAction === "rest_all") {
+        allProfiles = true;
         credits = 0;
-        message = `☕ Profil ${profileIndex} telah berjalan ke kursi istirahat Warkop Obim (0/50 kr).`;
+        message =
+          "☕ Seluruh 11 Editor Video beranjak dari PC menuju kursi istirahat di Lounge Warkop Obim!";
       }
 
-      const updatedAccounts = syncUpdateProfileCredits({
+      const updatedAccounts = await syncUpdateProfileCreditsAsync({
         profileIndex,
         credits,
         allProfiles,
@@ -185,7 +185,9 @@ export async function POST(request: Request) {
       if (shouldMirror && targetChatId && process.env.TELEGRAM_BOT_TOKEN) {
         const client = new TelegramClient();
         const tgMsg = allProfiles
-          ? `🏢 <b>[Kantor Virtual 3D]</b> Seluruh 11 Profil Chrome diisi ulang menjadi <b>${credits}/50 kr</b> oleh CEO.`
+          ? credits > 0
+            ? `🏢 <b>[Kantor Virtual 3D]</b> Seluruh 11 Editor Video kembali <b>Standby di PC Masing-Masing (${credits}/50 kr)</b> 💻.`
+            : `🏢 <b>[Kantor Virtual 3D]</b> Seluruh 11 Editor Video berpindah dari PC ke <b>Kursi Istirahat Lounge</b> ☕.`
           : `🏢 <b>[Kantor Virtual 3D]</b> Kuota <b>Profil ${profileIndex}</b> diupdate menjadi <b>${credits}/50 kr</b> (${credits === 0 ? "Istirahat ke Lounge ☕" : "Standby di Meja 💻"}).`;
         await client.sendMessage(targetChatId, tgMsg, { parse_mode: "HTML" }).catch(() => null);
       }
@@ -203,6 +205,7 @@ export async function POST(request: Request) {
       const state = readVirtualOfficeSyncState();
       state.mirrorToTelegram = Boolean(body.mirrorToTelegram);
       saveVirtualOfficeSyncState(state);
+      await persistVirtualOfficeCloudSync(listFlowProfileAccounts(), state);
       return NextResponse.json({ ok: true, syncState: state });
     }
 
@@ -227,10 +230,42 @@ export async function POST(request: Request) {
       let updatedAccounts = accounts;
       let updatedCredits: number | undefined = undefined;
 
-      // A. Check credit / refill / rest actions first
-      if (lower === "refill_50" || lower === "/refill" || lower.includes("isi kuota")) {
+      const isBulkStandbyText =
+        lower === "/standby" ||
+        lower === "editor standby" ||
+        lower === "semua editor standby" ||
+        /(?:semua|editor).*(?:standby|stand\s*by|kembali\s*ke\s*pc|kembali\s*ke\s*meja)/i.test(lower);
+
+      const isBulkRestText =
+        lower === "/istirahat" ||
+        lower === "editor istirahat" ||
+        lower === "semua editor istirahat" ||
+        /(?:semua|editor).*(?:istirahat|kursi\s*istirahat|ke\s*lounge)/i.test(lower);
+
+      // A. Check credit / refill / standby / rest actions first
+      if (isBulkStandbyText) {
+        updatedAccounts = await syncUpdateProfileCreditsAsync({
+          credits: 50,
+          allProfiles: true,
+          source: "virtual-office",
+        });
+        if (profileIndex) updatedCredits = 50;
+        replyText =
+          `💻 *Seluruh 11 Editor Video Kembali Standby di PC Masing-Masing!*\n` +
+          `Semua editor (Profil 1 s/d Profil 11) sedang berjalan kembali dari kursi istirahat menuju meja PC masing-masing dengan kuota penuh (50/50 kr).`;
+      } else if (isBulkRestText) {
+        updatedAccounts = await syncUpdateProfileCreditsAsync({
+          credits: 0,
+          allProfiles: true,
+          source: "virtual-office",
+        });
+        if (profileIndex) updatedCredits = 0;
+        replyText =
+          `☕ *Seluruh 11 Editor Video Berpindah ke Kursi Istirahat!*\n` +
+          `Semua editor (Profil 1 s/d Profil 11) telah meninggalkan PC mereka dan berjalan menuju kursi istirahat di *Lounge Warkop Obim*.`;
+      } else if (lower === "refill_50" || lower === "/refill" || lower.includes("isi kuota")) {
         if (profileIndex) {
-          updatedAccounts = syncUpdateProfileCredits({
+          updatedAccounts = await syncUpdateProfileCreditsAsync({
             profileIndex,
             credits: 50,
             source: "virtual-office",
@@ -240,7 +275,7 @@ export async function POST(request: Request) {
             `🔋 *Kuota ${workCtx.persona.name} Diisi Penuh (50/50 kr)!*\n` +
             `Saya sudah kembali duduk di *${workCtx.persona.workstationLabel}* dan siap melanjutkan render *${workCtx.persona.sceneFocus}* untuk konten \`${workCtx.currentAssignedItem.contentCode}\` (*"${workCtx.currentAssignedItem.title}"*). 💻`;
         } else {
-          updatedAccounts = syncUpdateProfileCredits({
+          updatedAccounts = await syncUpdateProfileCreditsAsync({
             credits: 50,
             allProfiles: true,
             source: "virtual-office",
@@ -248,16 +283,26 @@ export async function POST(request: Request) {
           replyText = `🔋 *Seluruh 11 Profil Chrome Diisi Penuh (50/50 kr)!*\nSemua editor telah kembali ke meja kerja masing-masing untuk melanjutkan antrean produksi.`;
         }
       } else if (lower === "rest_now" || lower === "/lounge" || lower.includes("ke lounge")) {
-        const targetIdx = profileIndex || 3;
-        updatedAccounts = syncUpdateProfileCredits({
-          profileIndex: targetIdx,
-          credits: 0,
-          source: "virtual-office",
-        });
-        if (profileIndex) updatedCredits = 0;
-        replyText =
-          `☕ *${workCtx.persona.name} Beranjak ke Lounge Warkop Obim!*\n` +
-          `Kuota akun Chrome diset ke *0/50 kr* usai mengerjakan \`${workCtx.lastCompletedItem.contentCode}\` (*"${workCtx.lastCompletedItem.title}"*). Sedang istirahat menyeruput kopi di kursi lounge.`;
+        if (profileIndex) {
+          updatedAccounts = await syncUpdateProfileCreditsAsync({
+            profileIndex,
+            credits: 0,
+            source: "virtual-office",
+          });
+          updatedCredits = 0;
+          replyText =
+            `☕ *${workCtx.persona.name} Beranjak ke Lounge Warkop Obim!*\n` +
+            `Kuota akun Chrome diset ke *0/50 kr* usai mengerjakan \`${workCtx.lastCompletedItem.contentCode}\` (*"${workCtx.lastCompletedItem.title}"*). Sedang istirahat menyeruput kopi di kursi lounge.`;
+        } else {
+          updatedAccounts = await syncUpdateProfileCreditsAsync({
+            credits: 0,
+            allProfiles: true,
+            source: "virtual-office",
+          });
+          replyText =
+            `☕ *Seluruh 11 Editor Video Berpindah ke Kursi Istirahat!*\n` +
+            `Semua editor telah meninggalkan PC mereka dan duduk di kursi istirahat Lounge Warkop Obim.`;
+        }
       } else if (
         lower === "consume_3" ||
         lower === "consume_10" ||
@@ -266,7 +311,7 @@ export async function POST(request: Request) {
         const targetIdx = profileIndex || 1;
         const curr = accounts.find((a) => a.index === targetIdx)?.credits ?? 50;
         const nextKr = Math.max(0, curr - 10);
-        updatedAccounts = syncUpdateProfileCredits({
+        updatedAccounts = await syncUpdateProfileCreditsAsync({
           profileIndex: targetIdx,
           credits: nextKr,
           source: "virtual-office",

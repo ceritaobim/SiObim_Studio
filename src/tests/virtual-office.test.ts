@@ -14,6 +14,7 @@ import {
 import {
   readVirtualOfficeSyncState,
   recordVirtualOfficeEvent,
+  syncUpdateProfileCredits,
 } from "@/lib/services/virtual-office-sync";
 import {
   NPC_PERSONA_CATALOG,
@@ -197,5 +198,29 @@ describe("Virtual Office 3D Configuration, Third-Person Body-Block & Buffer Corr
     expect(replyP8).toContain("CO-2026-008");
     expect(replyScriptLead).toContain("Kak Fajar");
     expect(replyPromptEng).toContain("Dimas Origami");
+  });
+
+  it("should move all 11 video editors to Lounge chairs when ordered to rest and return all 11 to PCs when ordered standby", () => {
+    // 1. Order all editors to rest (credits = 0)
+    const restedAccounts = syncUpdateProfileCredits({
+      credits: 0,
+      allProfiles: true,
+      source: "telegram",
+    });
+
+    const top11Rested = restedAccounts.filter((a) => a.index >= 1 && a.index <= 11);
+    expect(top11Rested.length).toBe(11);
+    expect(top11Rested.every((a) => a.credits === 0)).toBe(true);
+
+    // 2. Order all editors to standby back at their PCs (credits = 50)
+    const standbyAccounts = syncUpdateProfileCredits({
+      credits: 50,
+      allProfiles: true,
+      source: "telegram",
+    });
+
+    const top11Standby = standbyAccounts.filter((a) => a.index >= 1 && a.index <= 11);
+    expect(top11Standby.length).toBe(11);
+    expect(top11Standby.every((a) => a.credits === 50)).toBe(true);
   });
 });
