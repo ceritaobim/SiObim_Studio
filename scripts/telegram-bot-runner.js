@@ -29,7 +29,9 @@ if (fs.existsSync(envPath)) {
 }
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const ALLOWED_ID = process.env.TELEGRAM_ALLOWED_USER_ID;
+const ALLOWED_ID =
+  process.env.TELEGRAM_ALLOWED_USER_IDS ||
+  process.env.TELEGRAM_ALLOWED_USER_ID;
 const LOCAL_WEBHOOK_URL = process.env.LOCAL_WEBHOOK_URL || 'http://localhost:3000/api/telegram/webhook';
 
 if (!TOKEN) {

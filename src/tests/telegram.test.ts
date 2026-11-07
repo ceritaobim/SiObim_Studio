@@ -25,6 +25,16 @@ describe("Telegram Bot & Security Whitelist Integration", () => {
     expect(service.isAuthorized("")).toBe(false);
   });
 
+  it("supports multiple authorized user IDs separated by commas or spaces", () => {
+    process.env.TELEGRAM_ALLOWED_USER_ID = "1295640663, 888777666, 555444333";
+    const service = new TelegramService();
+
+    expect(service.isAuthorized("1295640663")).toBe(true);
+    expect(service.isAuthorized("888777666")).toBe(true);
+    expect(service.isAuthorized(555444333)).toBe(true);
+    expect(service.isAuthorized("999999999")).toBe(false);
+  });
+
   interface ServiceWithMockClient {
     client: {
       sendMessage: ReturnType<typeof vi.fn>;

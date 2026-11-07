@@ -23,8 +23,9 @@ import {
 } from "@/lib/db/repository";
 import { DEFAULT_OWNER_ID } from "@/lib/config/env";
 import {
+  loadVirtualOfficeCloudSync,
   recordVirtualOfficeEvent,
-  syncUpdateProfileCredits,
+  syncUpdateProfileCreditsAsync,
 } from "@/lib/services/virtual-office-sync";
 import { listFlowProfileAccounts } from "@/lib/providers/flow-accounts-service";
 
@@ -74,12 +75,29 @@ export class TelegramService {
 
   constructor() {
     this.client = new TelegramClient();
-    this.allowedUserId = (process.env.TELEGRAM_ALLOWED_USER_ID || "").trim();
+    this.allowedUserId = (
+      process.env.TELEGRAM_ALLOWED_USER_IDS ||
+      process.env.TELEGRAM_ALLOWED_USER_ID ||
+      ""
+    ).trim();
   }
 
   isAuthorized(senderId: string | number): boolean {
-    if (!this.allowedUserId) return false;
-    return String(senderId).trim() === this.allowedUserId;
+    const raw = (
+      process.env.TELEGRAM_ALLOWED_USER_IDS ||
+      process.env.TELEGRAM_ALLOWED_USER_ID ||
+      this.allowedUserId ||
+      ""
+    ).trim();
+
+    if (!raw) return false;
+
+    const allowedList = raw
+      .split(/[,;\s]+/)
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    return allowedList.includes(String(senderId).trim());
   }
 
   async handleUpdate(update: TelegramUpdate) {
@@ -104,7 +122,7 @@ export class TelegramService {
       console.warn(`[TELEGRAM] Akses ditolak untuk user ID tidak dikenal: ${senderId} (${message.from?.username})`);
       await this.client.sendMessage(
         chatId,
-        `⛔ <b>Akses Ditolak</b>\nMaaf, bot ini adalah asisten pribadi eksklusif milik channel CeritaObim Studio dan hanya dapat diakses oleh pemilik akun.`
+        `⛔ <b>Akses Ditolak</b>\nMaaf, bot ini adalah asisten pribadi eksklusif milik channel CeritaObim Studio dan hanya dapat diakses oleh user yang diizinkan.\n\n🆔 <b>User ID Telegram Anda:</b> <code>${senderId}</code>\n<i>Berikan nomor User ID ini kepada Owner Studio untuk didaftarkan ke daftar izin bot.</i>`
       );
       return { ok: true, unauthorized: true };
     }
@@ -127,8 +145,15 @@ export class TelegramService {
       bubbleDurationMs: 15000,
     });
 
-    // Perintah Kantor Virtual 3D: /kantor atau "cek kantor"
-    if (lowerText === "/kantor" || lowerText === "kantor" || lowerText === "cek kantor") {
+    // Perintah Kantor Virtual 3D: /kantor, /office, "🏢 Kantor Virtual", atau "cek kantor"
+    if (
+      lowerText === "/kantor" ||
+      lowerText === "/office" ||
+      lowerText === "kantor" ||
+      lowerText === "cek kantor" ||
+      lowerText.includes("kantor virtual")
+    ) {
+      await loadVirtualOfficeCloudSync();
       const flowAccs = listFlowProfileAccounts().slice(0, 11);
       const resting = flowAccs.filter((a) => a.credits === 0);
       const working = flowAccs.filter((a) => a.credits > 0);
@@ -137,43 +162,135 @@ export class TelegramService {
       const msg =
         `🏢 <b>Status Live Kantor Virtual 3D Obim Studio</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
-        `• <b>Tim Produksi Video:</b> 11 Profil + 1 PIC (Mas Radit)\n` +
-        `• <b>Standby Kerja di Meja:</b> ${working.length} Editor 💻\n` +
-        `• <b>Istirahat di Warkop Obim:</b> ${resting.length} Editor ☕\n` +
+        `• <b>Tim Produksi Video:</b> 11 Editor + 1 PIC (Mas Radit)\n` +
+        `• <b>Standby di PC Masing-Masing:</b> ${working.length} Editor 💻\n` +
+        `• <b>Duduk di Kursi Istirahat (Lounge):</b> ${resting.length} Editor ☕\n` +
         `• <b>Total Kuota Render:</b> ${totalKr} / 550 kr\n` +
-        `• <b>Tim Naskah & QC:</b> Aktif di ruangan masing-masing\n\n` +
+        `• <b>Tim Naskah & Publisher Buffer:</b> Aktif di ruangan masing-masing\n\n` +
         `💡 <i>Perintah Cepat Kantor 3D dari Telegram:</i>\n` +
-        `• Ketik <code>/refill</code> — Isi penuh 50 kr semua profil & panggil kembali ke meja\n` +
-        `• Ketik <code>/lounge</code> — Suruh tim kuota rendah istirahat ke Warkop Obim`;
+        `• Ketik <code>semua editor istirahat</code> — Semua 11 editor pindah dari PC ke kursi istirahat\n` +
+        `• Ketik <code>editor standby</code> — Semua 11 editor jalan kembali ke PC masing-masing`;
 
-      return this.client.sendMessage(chatId, msg, { parse_mode: "HTML" });
+      return this.client.sendMessage(chatId, msg, {
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "☕ Semua Editor Istirahat", callback_data: "office:rest_all" },
+              { text: "💻 Semua Editor Standby ke PC", callback_data: "office:standby_all" },
+            ],
+          ],
+        },
+      });
     }
 
-    // Perintah Refill Kuota Kantor 3D dari Telegram: /refill
-    if (lowerText === "/refill" || lowerText === "refill semua" || lowerText === "isi kuota") {
-      syncUpdateProfileCredits({
+    // Perintah Standby / Kembali ke PC Masing-Masing dari Telegram (Command atau Kalimat Natural)
+    const isStandbyEditorsCommand =
+      lowerText === "/refill" ||
+      lowerText === "/standby" ||
+      lowerText === "/kerja" ||
+      lowerText === "standby" ||
+      lowerText === "editor standby" ||
+      lowerText === "semua editor standby" ||
+      lowerText === "refill semua" ||
+      lowerText === "isi kuota" ||
+      /(?:editor|semua|tim|mereka).*(?:standby|stand\s*by|kembali\s*ke\s*pc|kembali\s*ke\s*komputer|kembali\s*ke\s*meja|balik\s*ke\s*pc|balik\s*kerja|kerja\s*lagi|refill|isi\s*kuota)/i.test(
+        lowerText
+      ) ||
+      /(?:standby|stand\s*by|kembali\s*ke\s*pc|kembali\s*ke\s*komputer|kembali\s*ke\s*meja|balik\s*ke\s*pc|refill).*(?:editor|semua|tim)/i.test(
+        lowerText
+      );
+
+    if (isStandbyEditorsCommand) {
+      const singleProfileMatch =
+        !lowerText.includes("semua") && lowerText.match(/profil\s*(\d{1,2})/i);
+      if (singleProfileMatch && singleProfileMatch[1]) {
+        const idx = parseInt(singleProfileMatch[1], 10);
+        await syncUpdateProfileCreditsAsync({
+          profileIndex: idx,
+          credits: 50,
+          source: "telegram",
+        });
+        return this.client.sendMessage(
+          chatId,
+          `💻 <b>Editor Profil ${idx} Kembali Standby di PC!</b>\nProfil ${idx} telah berjalan kembali dari kursi istirahat menuju meja PC kerjanya dengan kuota penuh (50/50 kr).`,
+          { parse_mode: "HTML" }
+        );
+      }
+
+      await syncUpdateProfileCreditsAsync({
         credits: 50,
         allProfiles: true,
         source: "telegram",
       });
       return this.client.sendMessage(
         chatId,
-        `🔋 <b>Seluruh 11 Profil Chrome Diisi Ulang (50/50 kr)!</b>\nSemua anggota tim di Kantor Virtual 3D sedang berjalan kembali dari Lounge Warkop Obim menuju meja kerja masing-masing. 💻`,
-        { parse_mode: "HTML" }
+        `💻 <b>Seluruh 11 Editor Video Kembali Standby di PC Masing-Masing!</b>\nSemua editor (Profil 1 s/d Profil 11) di Kantor Virtual 3D sedang berjalan kembali dari kursi istirahat menuju meja PC masing-masing dan siap bekerja (50/50 kr).`,
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "☕ Suruh Semua Editor Istirahat", callback_data: "office:rest_all" },
+                { text: "🏢 Cek Status Kantor 3D", callback_data: "office:status" },
+              ],
+            ],
+          },
+        }
       );
     }
 
-    // Perintah Istirahat ke Lounge dari Telegram: /lounge
-    if (lowerText === "/lounge" || lowerText === "/istirahat") {
-      syncUpdateProfileCredits({
-        profileIndex: 3,
+    // Perintah Semua Editor Istirahat ke Kursi Istirahat (Lounge) dari Telegram (Command atau Kalimat Natural)
+    const isRestEditorsCommand =
+      lowerText === "/lounge" ||
+      lowerText === "/istirahat" ||
+      lowerText === "istirahat" ||
+      lowerText === "editor istirahat" ||
+      lowerText === "semua editor istirahat" ||
+      lowerText === "istirahat semua" ||
+      /(?:editor|semua|tim|mereka).*(?:istirahat|lounge|kursi\s*istirahat|ngopi|rehat|santai)/i.test(
+        lowerText
+      ) ||
+      /(?:istirahat|ke\s*lounge|ke\s*kursi\s*istirahat|suruh\s*istirahat).*(?:editor|semua|tim)/i.test(
+        lowerText
+      );
+
+    if (isRestEditorsCommand) {
+      const singleProfileMatch =
+        !lowerText.includes("semua") && lowerText.match(/profil\s*(\d{1,2})/i);
+      if (singleProfileMatch && singleProfileMatch[1]) {
+        const idx = parseInt(singleProfileMatch[1], 10);
+        await syncUpdateProfileCreditsAsync({
+          profileIndex: idx,
+          credits: 0,
+          source: "telegram",
+        });
+        return this.client.sendMessage(
+          chatId,
+          `☕ <b>Editor Profil ${idx} Berpindah ke Kursi Istirahat!</b>\nProfil ${idx} telah meninggalkan PC dan berjalan menuju kursi istirahat di Lounge Warkop Obim.`,
+          { parse_mode: "HTML" }
+        );
+      }
+
+      await syncUpdateProfileCreditsAsync({
         credits: 0,
+        allProfiles: true,
         source: "telegram",
       });
       return this.client.sendMessage(
         chatId,
-        `☕ <b>Perintah Istirahat Diterima!</b>\nAnggota tim yang kehabisan kuota di Kantor Virtual 3D telah beranjak menuju kursi istirahat Warkop Obim.`,
-        { parse_mode: "HTML" }
+        `☕ <b>Seluruh 11 Editor Video Berpindah ke Kursi Istirahat!</b>\nSemua editor (Profil 1 s/d Profil 11) di Kantor Virtual 3D telah beranjak dari depan PC mereka dan berjalan menuju kursi istirahat di <b>Lounge Warkop Obim</b>.\n\n💡 <i>Ketik <code>editor standby</code> kapan saja agar semua editor jalan kembali ke PC masing-masing.</i>`,
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "💻 Panggil Semua Editor Standby ke PC", callback_data: "office:standby_all" },
+                { text: "🏢 Cek Status Kantor 3D", callback_data: "office:status" },
+              ],
+            ],
+          },
+        }
       );
     }
 
@@ -728,6 +845,69 @@ export class TelegramService {
     const action = parts[0];
     const codeOrArg = parts[1];
     const sub = parts[2];
+
+    if (action === "office" && codeOrArg === "rest_all") {
+      await this.client.answerCallbackQuery(callbackId, "Semua 11 editor berjalan ke kursi istirahat! ☕");
+      await syncUpdateProfileCreditsAsync({
+        credits: 0,
+        allProfiles: true,
+        source: "telegram",
+      });
+      await this.client.sendMessage(
+        chatId,
+        `☕ <b>Seluruh 11 Editor Video Berpindah ke Kursi Istirahat!</b>\nSemua editor (Profil 1 s/d Profil 11) telah meninggalkan meja PC dan duduk di kursi istirahat Lounge Warkop Obim.`,
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "💻 Panggil Semua Editor Standby ke PC", callback_data: "office:standby_all" }],
+            ],
+          },
+        }
+      );
+      return { ok: true };
+    }
+
+    if (action === "office" && codeOrArg === "standby_all") {
+      await this.client.answerCallbackQuery(callbackId, "Semua 11 editor kembali ke PC masing-masing! 💻");
+      await syncUpdateProfileCreditsAsync({
+        credits: 50,
+        allProfiles: true,
+        source: "telegram",
+      });
+      await this.client.sendMessage(
+        chatId,
+        `💻 <b>Seluruh 11 Editor Video Kembali Standby di PC Masing-Masing!</b>\nSemua editor (Profil 1 s/d Profil 11) telah berjalan kembali menuju meja PC masing-masing dengan kuota penuh (50/50 kr).`,
+        {
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "☕ Suruh Semua Editor Istirahat", callback_data: "office:rest_all" }],
+            ],
+          },
+        }
+      );
+      return { ok: true };
+    }
+
+    if (action === "office" && codeOrArg === "status") {
+      await this.client.answerCallbackQuery(callbackId, "Memuat status Kantor 3D...");
+      await loadVirtualOfficeCloudSync();
+      const flowAccs = listFlowProfileAccounts().slice(0, 11);
+      const resting = flowAccs.filter((a) => a.credits === 0);
+      const working = flowAccs.filter((a) => a.credits > 0);
+      const totalKr = flowAccs.reduce((acc, a) => acc + a.credits, 0);
+
+      await this.client.sendMessage(
+        chatId,
+        `🏢 <b>Status Live Kantor Virtual 3D Obim Studio</b>\n` +
+          `• <b>Standby di PC Masing-Masing:</b> ${working.length} Editor 💻\n` +
+          `• <b>Duduk di Kursi Istirahat (Lounge):</b> ${resting.length} Editor ☕\n` +
+          `• <b>Total Kuota Render:</b> ${totalKr} / 550 kr`,
+        { parse_mode: "HTML" }
+      );
+      return { ok: true };
+    }
 
     if (action === "publish" && codeOrArg) {
       await this.client.answerCallbackQuery(callbackId, `Mengunggah ${codeOrArg}...`);
