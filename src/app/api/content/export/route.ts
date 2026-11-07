@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAuthorizedOwner } from "@/lib/auth/owner-auth";
-import { listContentItems } from "@/lib/db/repository";
+import {
+  listAllScenesGroupedByContent,
+  listAssetsForContent,
+  listContentItems,
+} from "@/lib/db/repository";
 import { buildContentPlanWorkbookBuffer } from "@/features/content-library/xlsx-service";
 
 export async function GET(request: Request) {
@@ -18,8 +22,17 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const includeArchived = url.searchParams.get("includeArchived") === "true";
 
-  const items = await listContentItems(owner.ownerId, { includeArchived });
-  const buffer = buildContentPlanWorkbookBuffer(items);
+  const [items, assets, scenesGrouped] = await Promise.all([
+    listContentItems(owner.ownerId, { includeArchived }),
+    listAssetsForContent(owner.ownerId),
+    listAllScenesGroupedByContent(owner.ownerId),
+  ]);
+
+  const allScenes = Object.values(scenesGrouped).flat();
+  const buffer = buildContentPlanWorkbookBuffer(items, {
+    scenes: allScenes,
+    assets,
+  });
 
   const dateStamp = new Date().toISOString().slice(0, 10);
   const filename = `cerita_obim_contentplan_${dateStamp}.xlsx`;

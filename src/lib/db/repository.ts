@@ -832,6 +832,26 @@ function writeLocalStore(
     } catch {
       storeCacheByPath.set(normPath, { data, mtime: Date.now() });
     }
+
+    // Auto-sync master spreadsheet in 00.FolderOwner/ContentPlan_CeritaObim_Terbaru.xlsx
+    const isTestOrTemp = normPath !== path.resolve(DEFAULT_STORE_PATH);
+    if (
+      !isTestOrTemp &&
+      Array.isArray(data.contentItems) &&
+      data.contentItems.length > 0
+    ) {
+      try {
+        const {
+          syncContentPlanSpreadsheetToOwnerFolder,
+        } = require("@/features/content-library/xlsx-service");
+        syncContentPlanSpreadsheetToOwnerFolder(data.contentItems, {
+          scenes: data.scenes,
+          assets: data.assets,
+        });
+      } catch {
+        // non-blocking in restricted environments
+      }
+    }
   } catch {
     // In serverless environments like Vercel, the local root file system is read-only.
     // Suppress filesystem write errors so operations on Supabase still succeed smoothly.

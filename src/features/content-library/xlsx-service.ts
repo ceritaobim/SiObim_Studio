@@ -1,8 +1,12 @@
+import fs from "fs";
+import path from "path";
 import * as XLSX from "xlsx";
 import type {
+  AssetRecord,
   ContentItemRecord,
   ContentStatus,
   DuplicateTopicWarning,
+  SceneRecord,
   VerificationStatus,
 } from "@/types/domain";
 import {
@@ -344,15 +348,22 @@ export function parseContentPlanSpreadsheet(
   };
 }
 
+export interface WorkbookTrackingContext {
+  scenes?: SceneRecord[];
+  assets?: AssetRecord[];
+}
+
 /**
- * Builds an XLSX buffer with stable column names matching `templates/contentplan_template.xlsx`.
+ * Builds an XLSX buffer with stable column names matching `templates/contentplan_template.xlsx`
+ * and includes a dedicated ProductionTracking sheet for live video status.
  */
 export function buildContentPlanWorkbookBuffer(
-  items: ContentItemRecord[]
+  items: ContentItemRecord[],
+  context?: WorkbookTrackingContext
 ): Buffer {
   const sheetRows = items.map((item) => ({
     "Content ID": item.contentCode,
-    "Publish Date": item.publishedAt ?? "",
+    "Publish Date": item.publishedAt || item.scheduledPublishAt || "",
     Title: item.title,
     Category: item.category,
     Topic: item.topic,
@@ -376,27 +387,107 @@ export function buildContentPlanWorkbookBuffer(
   });
   XLSX.utils.book_append_sheet(workbook, contentSheet, CONTENT_PLAN_SHEET_NAME);
 
+  // Dedicated Production Tracking Sheet
+  const scenes = context?.scenes ?? [];
+  const assets = context?.assets ?? [];
+
+  const trackingRows = items.map((item) => {
+    const itemScenes = scenes.filter((s) => s.contentId === item.id);
+    const itemAssets = assets.filter((a) => a.contentId === item.id);
+    const voice = itemAssets.find((a) => a.assetType === "voice_audio");
+    const finalVid = itemAssets.find((a) => a.assetType === "final_video");
+    const completedClips = itemScenes.filter((s) =>
+      itemAssets.some(
+        (a) =>
+          a.assetType === "scene_video" &&
+          (a.sceneId === s.id || a.id === s.uploadedClipAssetId)
+      )
+    ).length;
+
+    let finalVideoStatus = "BELUM LENGKAP";
+    if (finalVid) {
+      finalVideoStatus = "SUDAH DIRAKIT (MP4)";
+    } else if (
+      completedClips === itemScenes.length &&
+      itemScenes.length > 0 &&
+      voice
+    ) {
+      finalVideoStatus = "SIAP DIRAKIT";
+    }
+
+    return {
+      "Content ID": item.contentCode,
+      "Judul Video": item.title,
+      "Kategori / Program": item.category,
+      "Status Produksi": item.contentStatus.toUpperCase(),
+      "Voiceover Obim": voice ? "SIAP (MP3)" : "BELUM",
+      "Durasi Audio (dtk)":
+        voice && voice.durationMs
+          ? (voice.durationMs / 1000).toFixed(1)
+          : item.targetDurationSeconds,
+      "Progres Klip Scene":
+        itemScenes.length > 0
+          ? `${completedClips} / ${itemScenes.length} Klip`
+          : "0 Klip",
+      "Video Final 9:16": finalVideoStatus,
+      "Nama File Final": finalVid
+        ? finalVid.originalFilename || "final.mp4"
+        : "-",
+      "Jadwal Tayang": item.scheduledPublishAt || "-",
+      "Tanggal Rilis": item.publishedAt || "-",
+    };
+  });
+
+  const trackingSheet = XLSX.utils.json_to_sheet(trackingRows);
+  XLSX.utils.book_append_sheet(workbook, trackingSheet, "ProductionTracking");
+
   const readmeSheet = XLSX.utils.json_to_sheet([
     {
       Field: "Tujuan",
       Keterangan:
-        "Format impor/ekspor untuk Content Library CeritaObim Studio. Database aplikasi adalah sumber data utama.",
+        "Spreadsheet resmi CeritaObim Studio yang selalu tersinkronisasi otomatis dengan database studio.",
     },
     {
-      Field: "Content ID",
-      Keterangan: "ID unik dan stabil per video, misalnya CO-2026-001.",
-    },
-    {
-      Field: "Verification Status",
-      Keterangan: "DRAFT / NEEDS_VERIFICATION / VERIFIED / REJECTED.",
-    },
-    {
-      Field: "Production Status",
+      Field: "Sheet: ContentPlan",
       Keterangan:
-        "IDEA / PLANNED / SCRIPT_APPROVED / IN_PRODUCTION / ASSEMBLED / APPROVED / READY_TO_PUBLISH / PUBLISHED / ARCHIVED.",
+        "Daftar lengkap naskah, hook, klaim fakta, durasi, dan caption media sosial untuk setiap episode.",
+    },
+    {
+      Field: "Sheet: ProductionTracking",
+      Keterangan:
+        "Tabel pelacakan langsung status produksi: kelengkapan audio voiceover, jumlah klip scene origami, dan video master 9:16.",
+    },
+    {
+      Field: "Sinkronisasi",
+      Keterangan:
+        "File ini diperbarui otomatis setiap kali terjadi perubahan data di aplikasi studio.",
     },
   ]);
   XLSX.utils.book_append_sheet(workbook, readmeSheet, "Readme");
 
   return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
+
+export const OWNER_SPREADSHEET_FILENAME = "ContentPlan_CeritaObim_Terbaru.xlsx";
+
+/**
+ * Automatically syncs the master spreadsheet to 00.FolderOwner/ContentPlan_CeritaObim_Terbaru.xlsx
+ */
+export function syncContentPlanSpreadsheetToOwnerFolder(
+  items: ContentItemRecord[],
+  context?: WorkbookTrackingContext,
+  targetDir = path.join(process.cwd(), "00.FolderOwner")
+): string | null {
+  try {
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    const filePath = path.join(targetDir, OWNER_SPREADSHEET_FILENAME);
+    const buffer = buildContentPlanWorkbookBuffer(items, context);
+    fs.writeFileSync(filePath, buffer);
+    return filePath;
+  } catch {
+    // Non-blocking in read-only / restricted environments
+    return null;
+  }
 }
