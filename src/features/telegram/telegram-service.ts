@@ -22,6 +22,11 @@ import {
   updateContentItem,
 } from "@/lib/db/repository";
 import { DEFAULT_OWNER_ID } from "@/lib/config/env";
+import {
+  recordVirtualOfficeEvent,
+  syncUpdateProfileCredits,
+} from "@/lib/services/virtual-office-sync";
+import { listFlowProfileAccounts } from "@/lib/providers/flow-accounts-service";
 
 export interface TelegramUser {
   id: number | string;
@@ -102,6 +107,74 @@ export class TelegramService {
         `⛔ <b>Akses Ditolak</b>\nMaaf, bot ini adalah asisten pribadi eksklusif milik channel CeritaObim Studio dan hanya dapat diakses oleh pemilik akun.`
       );
       return { ok: true, unauthorized: true };
+    }
+
+    // Rekam sinyal perintah Telegram agar karakter di Kantor Virtual 3D langsung bereaksi!
+    const lowerText = text.toLowerCase();
+    const targetActor = lowerText.includes("publish") || lowerText.includes("upload") || lowerText.includes("jadwal")
+      ? { id: "pic-qc", name: "Mba Siska (PIC QC & Distribusi)" }
+      : lowerText.includes("naskah") || lowerText.includes("topik") || lowerText.includes("ide")
+      ? { id: "pic-script", name: "Kak Fajar (PIC Naskah)" }
+      : { id: "pic-video", name: "Mas Radit (PIC Produksi Video)" };
+
+    recordVirtualOfficeEvent({
+      source: "telegram",
+      actorId: targetActor.id,
+      actorName: targetActor.name,
+      summary: `Menerima perintah Telegram dari ${senderName}: "${text}"`,
+      command: text,
+      bubbleText: `📲 Telegram CEO: "${text.slice(0, 38)}"`,
+      bubbleDurationMs: 15000,
+    });
+
+    // Perintah Kantor Virtual 3D: /kantor atau "cek kantor"
+    if (lowerText === "/kantor" || lowerText === "kantor" || lowerText === "cek kantor") {
+      const flowAccs = listFlowProfileAccounts().slice(0, 11);
+      const resting = flowAccs.filter((a) => a.credits === 0);
+      const working = flowAccs.filter((a) => a.credits > 0);
+      const totalKr = flowAccs.reduce((acc, a) => acc + a.credits, 0);
+
+      const msg =
+        `🏢 <b>Status Live Kantor Virtual 3D Obim Studio</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `• <b>Tim Produksi Video:</b> 11 Profil + 1 PIC (Mas Radit)\n` +
+        `• <b>Standby Kerja di Meja:</b> ${working.length} Editor 💻\n` +
+        `• <b>Istirahat di Warkop Obim:</b> ${resting.length} Editor ☕\n` +
+        `• <b>Total Kuota Render:</b> ${totalKr} / 550 kr\n` +
+        `• <b>Tim Naskah & QC:</b> Aktif di ruangan masing-masing\n\n` +
+        `💡 <i>Perintah Cepat Kantor 3D dari Telegram:</i>\n` +
+        `• Ketik <code>/refill</code> — Isi penuh 50 kr semua profil & panggil kembali ke meja\n` +
+        `• Ketik <code>/lounge</code> — Suruh tim kuota rendah istirahat ke Warkop Obim`;
+
+      return this.client.sendMessage(chatId, msg, { parse_mode: "HTML" });
+    }
+
+    // Perintah Refill Kuota Kantor 3D dari Telegram: /refill
+    if (lowerText === "/refill" || lowerText === "refill semua" || lowerText === "isi kuota") {
+      syncUpdateProfileCredits({
+        credits: 50,
+        allProfiles: true,
+        source: "telegram",
+      });
+      return this.client.sendMessage(
+        chatId,
+        `🔋 <b>Seluruh 11 Profil Chrome Diisi Ulang (50/50 kr)!</b>\nSemua anggota tim di Kantor Virtual 3D sedang berjalan kembali dari Lounge Warkop Obim menuju meja kerja masing-masing. 💻`,
+        { parse_mode: "HTML" }
+      );
+    }
+
+    // Perintah Istirahat ke Lounge dari Telegram: /lounge
+    if (lowerText === "/lounge" || lowerText === "/istirahat") {
+      syncUpdateProfileCredits({
+        profileIndex: 3,
+        credits: 0,
+        source: "telegram",
+      });
+      return this.client.sendMessage(
+        chatId,
+        `☕ <b>Perintah Istirahat Diterima!</b>\nAnggota tim yang kehabisan kuota di Kantor Virtual 3D telah beranjak menuju kursi istirahat Warkop Obim.`,
+        { parse_mode: "HTML" }
+      );
     }
 
     // Perintah: /start atau /help atau "menu"

@@ -19,6 +19,7 @@ import {
   Sparkles,
   ChevronRight,
   LogOut,
+  Building2,
 } from "lucide-react";
 import { PRIMARY_NAV_ITEMS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ import { ModeToggle } from "./mode-toggle";
 
 const ICON_MAP: Record<string, ReactNode> = {
   "/": <Home className="h-4 w-4 shrink-0" aria-hidden="true" />,
+  "/virtual-office": <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />,
   "/content": <CalendarRange className="h-4 w-4 shrink-0" aria-hidden="true" />,
   "/production": <Mic className="h-4 w-4 shrink-0" aria-hidden="true" />,
   "/assets": <Film className="h-4 w-4 shrink-0" aria-hidden="true" />,

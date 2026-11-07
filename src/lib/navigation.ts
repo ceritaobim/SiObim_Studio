@@ -78,3 +78,11 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     milestoneTag: "Sistem",
   },
 ];
+
+export const VIRTUAL_OFFICE_NAV_ITEM: NavItem = {
+  label: "Kantor Virtual 3D",
+  shortLabel: "3D Office",
+  href: "/virtual-office",
+  description: "Visualisasi 3D ruang kerja tim, profil Chrome, kursi istirahat & Telegram bot",
+  milestoneTag: "3D AI",
+};

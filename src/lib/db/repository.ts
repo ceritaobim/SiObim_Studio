@@ -841,9 +841,8 @@ function writeLocalStore(
       data.contentItems.length > 0
     ) {
       try {
-        const {
-          syncContentPlanSpreadsheetToOwnerFolder,
-        } = require("@/features/content-library/xlsx-service");
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { syncContentPlanSpreadsheetToOwnerFolder } = require("@/features/content-library/xlsx-service");
         syncContentPlanSpreadsheetToOwnerFolder(data.contentItems, {
           scenes: data.scenes,
           assets: data.assets,

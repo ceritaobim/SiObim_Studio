@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Building2, ArrowRight, Gamepad2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsManager } from "@/features/settings/settings-manager";
 import { TelegramSettingsCard } from "@/features/settings/telegram-settings-card";
@@ -45,6 +47,33 @@ export default async function SettingsPage() {
             : "Database: Penyimpanan Lokal (.data)"
         }
       />
+
+      {/* Akses Eksklusif Kantor Virtual 3D Obim Studio */}
+      <section className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 text-white shadow-md">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 border border-amber-400/40 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-300 uppercase tracking-wider">
+              <Gamepad2 className="h-3.5 w-3.5" />
+              <span>Simulasi 3D Interaktif</span>
+            </div>
+            <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-indigo-400" />
+              <span>Kantor Virtual 3D • CeritaObim Studio</span>
+            </h2>
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              Masuk ke dunia 3D Obim Studio untuk menjelajahi 11 meja Profil Chrome Produksi Video, Ruang Naskah &amp; Produser, Lounge Warkop Obim, serta Galeri Jadwal Tayang Buffer. Untuk kembali ke website studio dari dalam kantor virtual, cukup hampiri dan berinteraksi dengan <strong>Pintu Keluar Studio</strong>.
+            </p>
+          </div>
+
+          <Link
+            href="/virtual-office"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-950 shadow-lg transition transform hover:scale-[1.02] active:scale-95"
+          >
+            <span>🏢 Masuk ke Kantor Virtual 3D</span>
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
 
       {/* Pusat Kontrol Bot Telegram */}
       <TelegramSettingsCard />

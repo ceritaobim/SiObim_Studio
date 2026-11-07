@@ -902,7 +902,41 @@ export function resolveDirectStudioQuery(
     }
   }
 
-  // 9. Pencarian berdasarkan Kata Kunci Topik / Judul
+  // 9. Pencarian berdasarkan Kata Kunci Topik / Judul Spesifik
+  const STOPWORDS = new Set([
+    "apakah",
+    "status",
+    "konten",
+    "video",
+    "tolong",
+    "gimana",
+    "hari",
+    "yang",
+    "mana",
+    "bisa",
+    "bikin",
+    "lebih",
+    "sama",
+    "dari",
+    "buat",
+    "lagi",
+    "kapan",
+    "siapa",
+    "terakhir",
+    "terahir",
+    "generate",
+    "kerjakan",
+    "kamu",
+    "kenapa",
+    "atau",
+    "tapi",
+    "kalau",
+    "cuma",
+    "saat",
+    "sedang",
+    "sudah",
+    "belum",
+  ]);
   const all = [
     ...snapshot.publishedItems.map((i) => ({ ...i, status: "published" })),
     ...snapshot.readyItems.map((i) => ({ ...i, status: "ready_to_publish" })),
@@ -910,7 +944,10 @@ export function resolveDirectStudioQuery(
   ];
   for (const item of all) {
     const lower = item.title.toLowerCase();
-    const words = q.split(/\s+/).filter((w) => w.length >= 4 && !["apakah", "status", "konten", "video", "tolong", "gimana", "hari"].includes(w));
+    const words = q
+      .replace(/[^a-z0-9\s]/gi, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 5 && !STOPWORDS.has(w));
     if (words.length > 0 && words.some((w) => lower.includes(w))) {
       return {
         matched: true,
