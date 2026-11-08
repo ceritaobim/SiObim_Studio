@@ -248,16 +248,22 @@ export async function generatePersonalizedNpcReply(params: {
 
   if (apiKey) {
     try {
-      let model = (
+      const configuredModel = (
         process.env.LLM_MODEL ||
         process.env.GEMINI_MODEL ||
-        "gemini-3-flash-preview"
-      ).trim();
-      model = model.replace(/^["']|["']$/g, "").trim();
+        "gemini-2.5-flash"
+      )
+        .trim()
+        .replace(/^["']|["']$/g, "");
 
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-        model
-      )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const candidateModels = Array.from(
+        new Set([
+          configuredModel,
+          "gemini-2.5-flash",
+          "gemini-2.0-flash",
+          "gemini-1.5-flash",
+        ])
+      );
 
       const systemPrompt = `Kamu sedang berperan sebagai karakter NPC bernama "${persona.name}" dengan jabatan "${persona.role}" di dalam Kantor Virtual 3D CeritaObim Studio.
 Lawan bicaramu saat ini adalah CEO Obim (pemilik studio) yang sedang menghampiri mejamu secara langsung di dunia 3D.
@@ -285,21 +291,27 @@ ATURAN MENJAWAB:
 2. Jika CEO bertanya tentang video terakhir yang kamu generate/kerjakan, sebutkan secara spesifik konten tanggung jawabmu yaitu [${lastCompletedItem.contentCode}] "${lastCompletedItem.title}" beserta detail adegan "${persona.sceneFocus}" yang kamu kerjakan, bukan konten milik orang lain.
 3. Gunakan Bahasa Indonesia yang natural, hidup, sesuai gaya bicaramu, ringkas (maksimal 2-3 paragraf pendek), dan gunakan tanda *teks* untuk menebalkan poin penting.`;
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [{ text: params.userText }] }],
-          generationConfig: { temperature: 0.45, maxOutputTokens: 600 },
-        }),
-      });
+      for (const modelName of candidateModels) {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+          modelName
+        )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-      if (response.ok) {
-        const data = await response.json();
-        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (candidateText) {
-          return candidateText.replace(/\*\*(.*?)\*\*/g, "*$1*");
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: params.userText }] }],
+            generationConfig: { temperature: 0.6, maxOutputTokens: 600 },
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (candidateText) {
+            return candidateText.replace(/\*\*(.*?)\*\*/g, "*$1*");
+          }
         }
       }
     } catch {

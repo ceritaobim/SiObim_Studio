@@ -6,11 +6,19 @@ import {
   getStudioStoreSnapshot,
   resolveDirectStudioQuery,
 } from "@/features/telegram/studio-store-manager";
+import { askGeminiCopilot } from "@/features/telegram/telegram-ai-copilot";
+import {
+  listAuthenticatedTelegramUsers,
+  removeAuthenticatedTelegramUser,
+  getStudioTelegramPasscode,
+} from "@/lib/db/repository";
 
 describe("Telegram Bot & Security Whitelist Integration", () => {
   beforeEach(() => {
     process.env.TELEGRAM_BOT_TOKEN = "9010734438:AAE9t0Cn66sPbMF1rq5JRLax0VUa4J61P1U";
     process.env.TELEGRAM_ALLOWED_USER_ID = "1295640663";
+    removeAuthenticatedTelegramUser("777888999");
+    removeAuthenticatedTelegramUser("999999999");
   });
 
   it("authorizes only the whitelisted owner ID and blocks any strangers", () => {
@@ -214,5 +222,174 @@ describe("Telegram Bot & Security Whitelist Integration", () => {
     expect(itRes.replyText).toContain("Website Studio");
     expect(itRes.replyText).toContain("Robot Makro");
     expect(itRes.replyText).toContain("Bot Telegram");
+  });
+
+  describe("Interactive Passcode Login & Persistent Session Management", () => {
+    it("rejects unauthorized login attempt with incorrect passcode", async () => {
+      const service = new TelegramService();
+      const sendMock = vi.fn().mockResolvedValue({ ok: true });
+      (service as unknown as ServiceWithMockClient).client.sendMessage = sendMock;
+
+      const res = await service.handleUpdate({
+        message: {
+          chat: { id: 777888999 },
+          from: { id: 777888999, first_name: "Tamu" },
+          text: "/login passcodesalah123",
+        },
+      });
+
+      expect(res).toEqual({ ok: true, unauthorized: true, invalidPasscode: true });
+      expect(sendMock).toHaveBeenCalledWith(
+        777888999,
+        expect.stringContaining("Passcode Salah"),
+        expect.anything()
+      );
+      expect(service.isAuthorized("777888999")).toBe(false);
+    });
+
+    it("successfully authenticates with correct passcode, saves user, and does not require login again", async () => {
+      const service = new TelegramService();
+      const sendMock = vi.fn().mockResolvedValue({ ok: true });
+      (service as unknown as ServiceWithMockClient).client.sendMessage = sendMock;
+
+      const passcode = getStudioTelegramPasscode();
+
+      // Step 1: User belum terdaftar
+      expect(service.isAuthorized("777888999")).toBe(false);
+
+      // Step 2: Kirim perintah login dengan passcode yang valid
+      const loginRes = await service.handleUpdate({
+        message: {
+          chat: { id: 777888999 },
+          from: { id: 777888999, first_name: "Editor Baru", username: "editor_baru" },
+          text: `/login ${passcode}`,
+        },
+      });
+
+      expect(loginRes).toEqual({ ok: true, authenticated: true });
+      expect(sendMock).toHaveBeenCalledWith(
+        777888999,
+        expect.stringContaining("Login Berhasil!"),
+        expect.anything()
+      );
+
+      // Step 3: Pengguna kini terotorisasi secara permanen tanpa perlu login lagi
+      expect(service.isAuthorized("777888999")).toBe(true);
+
+      const savedUsers = listAuthenticatedTelegramUsers();
+      const found = savedUsers.find((u) => String(u.userId) === "777888999");
+      expect(found).toBeDefined();
+      expect(found?.username).toBe("editor_baru");
+
+      // Step 4: Pesan kedua langsung direspon tanpa diminta login lagi
+      sendMock.mockClear();
+      const secondRes = await service.handleUpdate({
+        message: {
+          chat: { id: 777888999 },
+          from: { id: 777888999, first_name: "Editor Baru" },
+          text: "/whoami",
+        },
+      });
+
+      expect(secondRes).not.toEqual(expect.objectContaining({ unauthorized: true }));
+      expect(sendMock).toHaveBeenCalledWith(
+        777888999,
+        expect.stringContaining("Informasi Akun Telegram Studio"),
+        expect.anything()
+      );
+    });
+
+    it("supports self-service /logout and admin /revoke commands", async () => {
+      const service = new TelegramService();
+      const sendMock = vi.fn().mockResolvedValue({ ok: true });
+      (service as unknown as ServiceWithMockClient).client.sendMessage = sendMock;
+
+      const passcode = getStudioTelegramPasscode();
+
+      // Login user 777888999
+      await service.handleUpdate({
+        message: {
+          chat: { id: 777888999 },
+          from: { id: 777888999, first_name: "Staff" },
+          text: `/masuk ${passcode}`,
+        },
+      });
+      expect(service.isAuthorized("777888999")).toBe(true);
+
+      // User melakukan /logout
+      sendMock.mockClear();
+      await service.handleUpdate({
+        message: {
+          chat: { id: 777888999 },
+          from: { id: 777888999, first_name: "Staff" },
+          text: "/logout",
+        },
+      });
+
+      expect(sendMock).toHaveBeenCalledWith(
+        777888999,
+        expect.stringContaining("Logout Berhasil"),
+        expect.anything()
+      );
+      expect(service.isAuthorized("777888999")).toBe(false);
+
+      // Login lagi untuk dites revoke oleh admin
+      await service.handleUpdate({
+        message: {
+          chat: { id: 777888999 },
+          from: { id: 777888999, first_name: "Staff" },
+          text: `/login ${passcode}`,
+        },
+      });
+      expect(service.isAuthorized("777888999")).toBe(true);
+
+      // Owner melakukan /revoke 777888999
+      sendMock.mockClear();
+      await service.handleUpdate({
+        message: {
+          chat: { id: 1295640663 },
+          from: { id: 1295640663, first_name: "Owner" },
+          text: "/revoke 777888999",
+        },
+      });
+
+      expect(sendMock).toHaveBeenCalledWith(
+        1295640663,
+        expect.stringContaining("Akses Dicabut"),
+        expect.anything()
+      );
+      expect(service.isAuthorized("777888999")).toBe(false);
+    });
+
+    it("answers natural questions flexibly like a conversational AI without rigid 'Ready ||' template strings", async () => {
+      const snapshot = await getStudioStoreSnapshot();
+
+      const resFreq = await askGeminiCopilot({
+        chatId: 1295640663,
+        userMessage: "berapa kali sehari jadwal upload kita?",
+        senderName: "Iqbal",
+        snapshot,
+      });
+      expect(resFreq.replyText).not.toContain("||");
+      expect(resFreq.replyText.toLowerCase()).toMatch(/sehari|hari|jadwal|wib/);
+
+      const resLast = await askGeminiCopilot({
+        chatId: 1295640663,
+        userMessage: "apa konten terahir yg terupload?",
+        senderName: "Iqbal",
+        snapshot,
+      });
+      expect(resLast.replyText).not.toContain("||");
+      expect(resLast.replyText.length).toBeGreaterThan(30);
+
+      const resNearest = await askGeminiCopilot({
+        chatId: 1295640663,
+        userMessage: "apa konten terdekat yg akan di upload?",
+        senderName: "Iqbal",
+        snapshot,
+      });
+      expect(resNearest.replyText).not.toContain("||");
+      expect(resNearest.replyText.length).toBeGreaterThan(30);
+    });
   });
 });

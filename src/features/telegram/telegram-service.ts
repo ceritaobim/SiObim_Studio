@@ -20,6 +20,11 @@ import {
   listContentItems,
   listAssetsForContent,
   updateContentItem,
+  listAuthenticatedTelegramUsers,
+  saveAuthenticatedTelegramUser,
+  removeAuthenticatedTelegramUser,
+  getStudioTelegramPasscode,
+  setStudioTelegramPasscode,
 } from "@/lib/db/repository";
 import { DEFAULT_OWNER_ID } from "@/lib/config/env";
 import {
@@ -90,14 +95,61 @@ export class TelegramService {
       ""
     ).trim();
 
-    if (!raw) return false;
+    const allowedList = raw
+      ? raw
+          .split(/[,;\s]+/)
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : [];
+
+    const idStr = String(senderId).trim();
+    if (idStr && allowedList.includes(idStr)) {
+      return true;
+    }
+
+    try {
+      const dbUsers = listAuthenticatedTelegramUsers();
+      if (dbUsers.some((u) => String(u.userId).trim() === idStr)) {
+        return true;
+      }
+    } catch (e) {
+      console.error("[TELEGRAM] Error checking authenticated users from store:", e);
+    }
+
+    return false;
+  }
+
+  isOwnerOrAdmin(senderId: string | number): boolean {
+    const idStr = String(senderId).trim();
+    if (!idStr) return false;
+
+    const raw = (
+      process.env.TELEGRAM_ALLOWED_USER_IDS ||
+      process.env.TELEGRAM_ALLOWED_USER_ID ||
+      this.allowedUserId ||
+      ""
+    ).trim();
 
     const allowedList = raw
-      .split(/[,;\s]+/)
-      .map((id) => id.trim())
-      .filter(Boolean);
+      ? raw
+          .split(/[,;\s]+/)
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : [];
 
-    return allowedList.includes(String(senderId).trim());
+    if (allowedList.length > 0 && allowedList.includes(idStr)) {
+      return true;
+    }
+
+    try {
+      const dbUsers = listAuthenticatedTelegramUsers();
+      const match = dbUsers.find((u) => String(u.userId).trim() === idStr);
+      if (match && (match.role === "owner" || match.role === "admin")) {
+        return true;
+      }
+    } catch {}
+
+    return false;
   }
 
   async handleUpdate(update: TelegramUpdate) {
@@ -115,20 +167,242 @@ export class TelegramService {
     const chatId = message.chat.id;
     const senderId = String(message.from?.id || "");
     const senderName = message.from?.first_name || "CEO";
+    const senderUsername = message.from?.username || "";
     const text = message.text.trim();
 
-    // Validasi Keamanan: Whitelist User ID
+    // Validasi Keamanan: Whitelist User ID & Passcode Login
     if (!this.isAuthorized(senderId)) {
+      const studioPasscode = getStudioTelegramPasscode();
+      const loginRegex = /^\/(?:login|masuk|start)(?:\s+(.+))?$/i;
+      const loginMatch = text.match(loginRegex);
+
+      let providedPasscode: string | null = null;
+      if (loginMatch && loginMatch[1]) {
+        providedPasscode = loginMatch[1].trim();
+      } else if (
+        !text.startsWith("/") &&
+        (text.toLowerCase() === studioPasscode.toLowerCase() || text === studioPasscode)
+      ) {
+        providedPasscode = text.trim();
+      }
+
+      if (providedPasscode) {
+        if (
+          providedPasscode.toLowerCase() === studioPasscode.toLowerCase() ||
+          providedPasscode === studioPasscode
+        ) {
+          const isFirstOwner =
+            senderId === "1295640663" ||
+            (process.env.TELEGRAM_ALLOWED_USER_ID || "")
+              .split(/[,;\s]+/)
+              .map((s) => s.trim())
+              .includes(senderId);
+
+          saveAuthenticatedTelegramUser({
+            userId: senderId,
+            username: senderUsername,
+            firstName: senderName,
+            role: isFirstOwner ? "owner" : "member",
+            authenticatedAt: new Date().toISOString(),
+            lastActiveAt: new Date().toISOString(),
+          });
+
+          console.info(`[TELEGRAM] User baru berhasil login & terdaftar: ${senderId} (${senderName})`);
+          await this.client.sendMessage(
+            chatId,
+            `🎉 <b>Login Berhasil! Selamat Datang di CeritaObim Studio</b>\n\n` +
+            `Halo <b>${escapeHtml(senderName)}</b>, akun Telegram Anda telah terverifikasi dan <b>tersimpan secara permanen</b> di sistem studio.\n\n` +
+            `✅ <b>Status:</b> Terautentikasi (Tidak perlu login lagi)\n` +
+            `🆔 <b>User ID:</b> <code>${senderId}</code>\n\n` +
+            `Mulai sekarang Anda dapat langsung mengakses Copilot Studio, memantau antrean video, cek etalase, hingga status kantor virtual.\n\n` +
+            `Ketik <b>/help</b> atau <b>/status</b> untuk memulai! 🚀`,
+            { parse_mode: "HTML" }
+          );
+          return { ok: true, authenticated: true };
+        } else {
+          await this.client.sendMessage(
+            chatId,
+            `❌ <b>Passcode Salah</b>\n\n` +
+            `Passcode yang Anda masukkan tidak valid.\n` +
+            `Silakan coba lagi dengan format:\n` +
+            `<code>/login [passcode]</code>\n\n` +
+            `<i>Hubungi Owner CeritaObim Studio jika Anda belum memiliki passcode akses.</i>`,
+            { parse_mode: "HTML" }
+          );
+          return { ok: true, unauthorized: true, invalidPasscode: true };
+        }
+      }
+
       console.warn(`[TELEGRAM] Akses ditolak untuk user ID tidak dikenal: ${senderId} (${message.from?.username})`);
       await this.client.sendMessage(
         chatId,
-        `⛔ <b>Akses Ditolak</b>\nMaaf, bot ini adalah asisten pribadi eksklusif milik channel CeritaObim Studio dan hanya dapat diakses oleh user yang diizinkan.\n\n🆔 <b>User ID Telegram Anda:</b> <code>${senderId}</code>\n<i>Berikan nomor User ID ini kepada Owner Studio untuk didaftarkan ke daftar izin bot.</i>`
+        `⛔ <b>Akses Ditolak</b>\nMaaf, bot ini adalah asisten pribadi eksklusif milik channel CeritaObim Studio dan hanya dapat diakses oleh user yang diizinkan.\n\n` +
+        `🔐 <b>Ingin Masuk?</b>\n` +
+        `Jika Anda memiliki <b>Studio Passcode</b>, silakan ketik:\n` +
+        `<code>/login [passcode]</code>\n` +
+        `<i>(Contoh: <code>/login obim2026</code>)</i>\n\n` +
+        `💡 <i>Anda hanya perlu login <b>1 kali saja</b>. Akun Telegram Anda akan diingat selamanya tanpa perlu login ulang!</i>\n\n` +
+        `🆔 <b>User ID Telegram Anda:</b> <code>${senderId}</code>\n` +
+        `<i>Berikan nomor User ID ini kepada Owner Studio untuk didaftarkan ke daftar izin bot.</i>`
       );
       return { ok: true, unauthorized: true };
     }
 
-    // Rekam sinyal perintah Telegram agar karakter di Kantor Virtual 3D langsung bereaksi!
+    // Perbarui jejak aktivitas terakhir untuk pengguna terdaftar
+    try {
+      const dbUsers = listAuthenticatedTelegramUsers();
+      const existing = dbUsers.find((u) => String(u.userId).trim() === senderId);
+      if (existing) {
+        saveAuthenticatedTelegramUser({
+          ...existing,
+          lastActiveAt: new Date().toISOString(),
+          username: senderUsername || existing.username,
+          firstName: senderName || existing.firstName,
+        });
+      }
+    } catch {}
+
     const lowerText = text.toLowerCase();
+
+    // Perintah User Management: /login (ketika sudah terautentikasi)
+    if (lowerText.startsWith("/login") || lowerText.startsWith("/masuk")) {
+      return this.client.sendMessage(
+        chatId,
+        `ℹ️ <b>Anda Sudah Terverifikasi</b>\n\n` +
+        `Akun Telegram Anda (ID: <code>${senderId}</code>) sudah aktif dan terdaftar secara permanen di CeritaObim Studio.\n\n` +
+        `Ketik <code>/whoami</code> untuk melihat detail akun atau <code>/help</code> untuk bantuan menu.`,
+        { parse_mode: "HTML" }
+      );
+    }
+
+    // Perintah User Management: /whoami, /akun, /profil
+    if (lowerText === "/whoami" || lowerText === "/akun" || lowerText === "/profil") {
+      const isOwner = this.isOwnerOrAdmin(senderId);
+      const dbUsers = listAuthenticatedTelegramUsers();
+      const userRecord = dbUsers.find((u) => String(u.userId).trim() === senderId);
+      const roleText = isOwner ? "👑 Studio Owner / Super Admin" : "👤 Tim Studio Member";
+      const sinceText = userRecord?.authenticatedAt
+        ? new Date(userRecord.authenticatedAt).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
+        : "Permanent Whitelist";
+
+      const msg =
+        `👤 <b>Informasi Akun Telegram Studio</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `• <b>Nama:</b> ${escapeHtml(senderName)}\n` +
+        `• <b>Username:</b> ${senderUsername ? "@" + escapeHtml(senderUsername) : "-"}\n` +
+        `• <b>Telegram User ID:</b> <code>${senderId}</code>\n` +
+        `• <b>Peran:</b> ${roleText}\n` +
+        `• <b>Status Login:</b> ✅ Terautentikasi (Permanen)\n` +
+        `• <b>Terdaftar Sejak:</b> ${sinceText} WIB\n\n` +
+        `💡 <i>Ketik <code>/logout</code> jika ingin keluar dari sesi ini.</i>`;
+
+      return this.client.sendMessage(chatId, msg, { parse_mode: "HTML" });
+    }
+
+    // Perintah User Management: /logout, /keluar
+    if (lowerText === "/logout" || lowerText === "/keluar") {
+      removeAuthenticatedTelegramUser(senderId);
+      return this.client.sendMessage(
+        chatId,
+        `🚪 <b>Logout Berhasil</b>\n\n` +
+        `Sesi akses bot Telegram Anda telah dihapus dari sistem studio.\n\n` +
+        `Untuk masuk kembali di kemudian hari, ketik:\n` +
+        `<code>/login [passcode]</code>`,
+        { parse_mode: "HTML" }
+      );
+    }
+
+    // Perintah User Management (Admin/Owner): /users, /listusers, /pengguna
+    if (lowerText === "/users" || lowerText === "/listusers" || lowerText === "/pengguna") {
+      if (!this.isOwnerOrAdmin(senderId)) {
+        return this.client.sendMessage(
+          chatId,
+          "⛔ Perintah ini hanya dapat diakses oleh Owner / Admin Studio."
+        );
+      }
+
+      const users = listAuthenticatedTelegramUsers();
+      let msg = `👥 <b>Daftar Pengguna Telegram Terverifikasi</b>\n━━━━━━━━━━━━━━━━━━━━\n`;
+      if (users.length === 0) {
+        msg += `<i>Belum ada user yang login via passcode. (Akses saat ini aktif melalui static whitelist .env)</i>\n\n`;
+      } else {
+        users.forEach((u, i) => {
+          const uRole = u.role === "owner" ? "👑 Owner" : "👤 Member";
+          const uName = escapeHtml(u.firstName || u.username || "User");
+          const uTag = u.username ? ` (@${escapeHtml(u.username)})` : "";
+          msg += `${i + 1}. <b>${uName}</b>${uTag}\n`;
+          msg += `   └ ID: <code>${u.userId}</code> | ${uRole}\n`;
+        });
+        msg += `\nTotal: <b>${users.length} pengguna</b> terdaftar permanen.\n\n`;
+      }
+      msg += `💡 <b>Perintah Admin:</b>\n`;
+      msg += `• Cabut akses: <code>/revoke [User_ID]</code>\n`;
+      msg += `• Ganti passcode: <code>/setpasscode [passcode_baru]</code>`;
+
+      return this.client.sendMessage(chatId, msg, { parse_mode: "HTML" });
+    }
+
+    // Perintah User Management (Admin/Owner): /revoke [User_ID], /hapususer [User_ID]
+    if (lowerText.startsWith("/revoke") || lowerText.startsWith("/hapususer")) {
+      if (!this.isOwnerOrAdmin(senderId)) {
+        return this.client.sendMessage(
+          chatId,
+          "⛔ Perintah ini hanya dapat diakses oleh Owner / Admin Studio."
+        );
+      }
+
+      const targetId = text.replace(/^\/(?:revoke|hapususer)/i, "").trim().split(/\s+/)[0];
+      if (!targetId) {
+        return this.client.sendMessage(
+          chatId,
+          "ℹ️ <i>Format perintah:</i> <code>/revoke [User_ID]</code>\nContoh: <code>/revoke 987654321</code>"
+        );
+      }
+
+      const removed = removeAuthenticatedTelegramUser(targetId);
+      if (removed) {
+        return this.client.sendMessage(
+          chatId,
+          `✅ <b>Akses Dicabut</b>\nUser ID <code>${targetId}</code> telah berhasil dihapus dari daftar akses studio. Pengguna tersebut harus login ulang untuk dapat mengakses bot.`,
+          { parse_mode: "HTML" }
+        );
+      } else {
+        return this.client.sendMessage(
+          chatId,
+          `⚠️ User ID <code>${targetId}</code> tidak ditemukan di daftar pengguna aktif.`,
+          { parse_mode: "HTML" }
+        );
+      }
+    }
+
+    // Perintah User Management (Admin/Owner): /setpasscode [passcode], /gantipasscode [passcode]
+    if (lowerText.startsWith("/setpasscode") || lowerText.startsWith("/gantipasscode")) {
+      if (!this.isOwnerOrAdmin(senderId)) {
+        return this.client.sendMessage(
+          chatId,
+          "⛔ Perintah ini hanya dapat diakses oleh Owner / Admin Studio."
+        );
+      }
+
+      const newPass = text.replace(/^\/(?:setpasscode|gantipasscode)/i, "").trim();
+      if (!newPass) {
+        const cur = getStudioTelegramPasscode();
+        return this.client.sendMessage(
+          chatId,
+          `🔑 <b>Passcode Studio Saat Ini:</b> <code>${cur}</code>\n\nUntuk mengubahnya, ketik:\n<code>/setpasscode [passcode_baru]</code>`,
+          { parse_mode: "HTML" }
+        );
+      }
+
+      setStudioTelegramPasscode(newPass);
+      return this.client.sendMessage(
+        chatId,
+        `✅ <b>Passcode Studio Berhasil Diperbarui!</b>\n\n🔑 <b>Passcode Baru:</b> <code>${escapeHtml(newPass)}</code>\n\nPengguna baru sekarang dapat login menggunakan passcode ini. Pengguna yang sudah login sebelumnya tetap dapat mengakses tanpa perlu login ulang.`,
+        { parse_mode: "HTML" }
+      );
+    }
+
+    // Rekam sinyal perintah Telegram agar karakter di Kantor Virtual 3D langsung bereaksi!
     const targetActor = lowerText.includes("publish") || lowerText.includes("upload") || lowerText.includes("jadwal")
       ? { id: "pic-qc", name: "Mba Siska (PIC QC & Distribusi)" }
       : lowerText.includes("naskah") || lowerText.includes("topik") || lowerText.includes("ide")
@@ -476,62 +750,86 @@ export class TelegramService {
       }
     }
 
-    // 3. Resolusi Cepat Langsung Format: [Status] || [Judul]
-    // Menjawab instan, 100% presisi tanpa embel-embel, tanpa greeting, dan tanpa halusinasi
+    // 3. Delegasi Peran Spesifik (HANYA jika diawali prefix eksplisit "it:", "manajer:", "audio:", "produser:", "kreatif:")
+    await loadVirtualOfficeCloudSync();
     const snapshot = await getStudioStoreSnapshot();
-    const directRes = resolveDirectStudioQuery(text, snapshot);
-    if (directRes.matched) {
-      return this.client.sendMessage(chatId, directRes.replyText, {
-        parse_mode: "HTML",
-        reply_markup: directRes.inlineButtons ? { inline_keyboard: directRes.inlineButtons } : undefined,
-      });
+    const isExplicitRolePrefix = /^(it|devops|manajer|manager|audio|voice|produser|script|kreatif|video)\s*:/i.test(
+      text.trim()
+    );
+    if (isExplicitRolePrefix) {
+      const directRes = resolveDirectStudioQuery(text, snapshot);
+      if (directRes.matched) {
+        return this.client.sendMessage(chatId, directRes.replyText, {
+          parse_mode: "HTML",
+          reply_markup: directRes.inlineButtons
+            ? { inline_keyboard: directRes.inlineButtons }
+            : undefined,
+        });
+      }
     }
 
-    // Obrolan Bebas & Perintah Fleksibel Lanjutan (Google Gemini AI Kepala Toko Copilot)
+    // 4. Obrolan Percakapan AI Fleksibel & Kontekstual (Google Gemini AI Copilot dengan Memori Percakapan)
     await this.client.sendChatAction(chatId, "typing");
 
     const aiRes = await askGeminiCopilot({
+      chatId,
       userMessage: text,
       senderName,
       snapshot,
     });
 
-    // 1. Bangun tombol aksi dinamis yang relevan di bawah balasan
+    // Tampilkan tombol inline HANYA jika relevan dengan topik obrolan (tidak spam di setiap chat)
     const inlineButtons: TelegramInlineButton[][] = [];
     const nextItem = snapshot.nextVideoToUpload;
+    const mentionsUploadOrNext =
+      /(?:upload|publish|tayang|terdekat|selanjutnya|antrean|jadwal)/i.test(lowerText);
+    const mentionsEditorOrOffice =
+      /(?:editor|kantor|istirahat|lounge|standby|kuota)/i.test(lowerText);
 
-    if (nextItem) {
+    if (mentionsUploadOrNext && nextItem) {
       inlineButtons.push([
         {
-          text: `⚡ Publish Sekarang`,
+          text: `⚡ Publish Sekarang (${nextItem.code})`,
           callback_data: `publish:${nextItem.code}`,
         },
         {
-          text: `🎬 Tonton Video`,
+          text: `🎬 Review Video`,
           callback_data: `review:${nextItem.code}`,
         },
       ]);
+    } else if (mentionsEditorOrOffice) {
+      inlineButtons.push([
+        { text: "☕ Semua Editor Istirahat", callback_data: "office:rest_all" },
+        { text: "💻 Semua Editor Standby ke PC", callback_data: "office:standby_all" },
+      ]);
     }
 
-    inlineButtons.push([
-      { text: "📊 Cek Etalase", callback_data: "menu:status" },
-      { text: "🎯 1x Sehari", callback_data: "settings:target:1" },
-      { text: "🎯 2x Sehari", callback_data: "settings:target:2" },
-    ]);
-
-    // 2. Kirim balasan AI berformat HTML bersih
+    // Kirim balasan AI berformat HTML bersih
     await this.client.sendMessage(chatId, aiRes.replyText, {
       parse_mode: "HTML",
-      reply_markup: { inline_keyboard: inlineButtons },
+      reply_markup:
+        inlineButtons.length > 0 ? { inline_keyboard: inlineButtons } : undefined,
     });
 
-    // 3. Eksekusi semua instruksi aksi yang dikeluarkan oleh Kepala Toko AI
+    // Eksekusi semua instruksi aksi otomatis yang dikeluarkan oleh AI Copilot
     for (const action of aiRes.actions) {
       try {
-        if (action.type === "PUBLISH_NOW" && action.contentCode) {
+        if (action.type === "REST_ALL_EDITORS") {
+          await syncUpdateProfileCreditsAsync({
+            credits: 0,
+            allProfiles: true,
+            source: "telegram",
+          });
+        } else if (action.type === "STANDBY_ALL_EDITORS") {
+          await syncUpdateProfileCreditsAsync({
+            credits: 50,
+            allProfiles: true,
+            source: "telegram",
+          });
+        } else if (action.type === "PUBLISH_NOW" && action.contentCode) {
           await this.client.sendMessage(
             chatId,
-            `⏳ <i>Instruksi diterima: Kepala Toko sedang mengeksekusi publikasi <b>${action.contentCode}</b> ke Buffer...</i>`
+            `⏳ <i>Instruksi diterima: sedang mengeksekusi publikasi <b>${action.contentCode}</b> ke Buffer...</i>`
           );
           const res = await executePublishNow(action.contentCode);
           await this.client.sendMessage(chatId, res.message);
@@ -573,7 +871,8 @@ export class TelegramService {
       `• 🏢 <b>Kantor Virtual:</b> 5 Departemen Siaga 24/7 (Ketik <code>/office</code>)\n` +
       `• 📊 <b>Pantau Etalase:</b> ${snap.inventory.publishedCount} Tayang | ${snap.inventory.readyCount} Siap Tayang | ${snap.inventory.inProductionCount} Dapur\n` +
       `• ⚡ <b>Video Terdepan:</b> ${snap.nextVideoToUpload ? `<code>${snap.nextVideoToUpload.code}</code> "${snap.nextVideoToUpload.title}"` : "-"}\n` +
-      `• 🎯 <b>Setelan:</b> ${snap.settings.dailyVideoTarget} Video/Hari • Jam ${snap.settings.defaultUploadHour}\n\n` +
+      `• 🎯 <b>Setelan:</b> ${snap.settings.dailyVideoTarget} Video/Hari • Jam ${snap.settings.defaultUploadHour}\n` +
+      `• 👤 <b>Akses & Akun:</b> Ketik <code>/whoami</code> | <code>/logout</code> (Admin: <code>/users</code>)\n\n` +
       `<i>Ketik perintah peran seperti <code>it: status server</code>, <code>manajer: cek stok</code>, atau <code>/office</code> untuk memantau semua ruangan.</i>`;
 
     const keyboard = {
