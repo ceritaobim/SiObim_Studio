@@ -82,6 +82,7 @@ export interface ProjectSettingsSummary {
   notes?: string;
   googleSheetUrl?: string;
   googleSheetWebAppUrl?: string;
+  telegramPasscode?: string;
   updatedAt?: string;
 }
 
@@ -382,5 +383,14 @@ export interface AnalyticsSummary {
     totalViews: number;
     platform: PlatformTarget;
   } | null;
+}
+
+export interface AuthenticatedTelegramUser {
+  userId: string;
+  username?: string;
+  firstName?: string;
+  authenticatedAt: string;
+  lastActiveAt?: string;
+  role?: "owner" | "admin" | "editor" | "member";
 }
 

@@ -5,6 +5,7 @@ import os from "os";
 import type {
   AnalyticsSummary,
   AssetRecord,
+  AuthenticatedTelegramUser,
   BudgetEventType,
   BudgetLedgerRecord,
   ContentAnalyticsRecord,
@@ -73,6 +74,7 @@ interface LocalStoreData {
   budgetLedger: BudgetLedgerRecord[];
   publications: PlatformPublicationRecord[];
   contentAnalytics: ContentAnalyticsRecord[];
+  telegramUsers?: AuthenticatedTelegramUser[];
 }
 
 const DEFAULT_STORE_PATH = path.join(
@@ -736,6 +738,9 @@ function readLocalStore(storePath = DEFAULT_STORE_PATH): LocalStoreData {
             ? parsed.publications
             : [],
           contentAnalytics,
+          telegramUsers: Array.isArray(parsed.telegramUsers)
+            ? parsed.telegramUsers
+            : [],
         };
         storeCacheByPath.set(normPath, { data: loaded, mtime: stats.mtimeMs });
         return loaded;
@@ -768,6 +773,7 @@ function readLocalStore(storePath = DEFAULT_STORE_PATH): LocalStoreData {
     budgetLedger: [],
     publications: [],
     contentAnalytics: initialAnalytics,
+    telegramUsers: [],
   };
   writeLocalStore(initial, normPath);
   try {
@@ -4654,6 +4660,98 @@ export async function getAnalyticsSummary(
     topPerformingContent,
   };
 }
+
+export function listAuthenticatedTelegramUsers(options?: {
+  storePath?: string;
+}): AuthenticatedTelegramUser[] {
+  const store = readLocalStore(options?.storePath);
+  return store.telegramUsers || [];
+}
+
+export function saveAuthenticatedTelegramUser(
+  user: AuthenticatedTelegramUser,
+  options?: { storePath?: string }
+): AuthenticatedTelegramUser[] {
+  const store = readLocalStore(options?.storePath);
+  const list = store.telegramUsers || [];
+  const existingIdx = list.findIndex(
+    (u) => String(u.userId).trim() === String(user.userId).trim()
+  );
+  if (existingIdx !== -1) {
+    list[existingIdx] = {
+      ...list[existingIdx]!,
+      ...user,
+      lastActiveAt: new Date().toISOString(),
+    };
+  } else {
+    list.push({
+      ...user,
+      authenticatedAt: user.authenticatedAt || new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+    });
+  }
+  store.telegramUsers = list;
+  writeLocalStore(store, options?.storePath);
+  return list;
+}
+
+export function removeAuthenticatedTelegramUser(
+  userId: string | number,
+  options?: { storePath?: string }
+): boolean {
+  const store = readLocalStore(options?.storePath);
+  const initialLen = (store.telegramUsers || []).length;
+  store.telegramUsers = (store.telegramUsers || []).filter(
+    (u) => String(u.userId).trim() !== String(userId).trim()
+  );
+  if (store.telegramUsers.length !== initialLen) {
+    writeLocalStore(store, options?.storePath);
+    return true;
+  }
+  return false;
+}
+
+export function getStudioTelegramPasscode(options?: {
+  storePath?: string;
+}): string {
+  const envPass = (
+    process.env.TELEGRAM_BOT_PASSCODE ||
+    process.env.STUDIO_OWNER_PASSCODE ||
+    ""
+  ).trim();
+  if (envPass) return envPass;
+
+  try {
+    const store = readLocalStore(options?.storePath);
+    const settings = store.settingsByOwner[DEFAULT_OWNER_ID];
+    const customPass = settings?.telegramPasscode;
+    if (typeof customPass === "string" && customPass.trim()) {
+      return customPass.trim();
+    }
+  } catch {}
+
+  return "obim2026";
+}
+
+export function setStudioTelegramPasscode(
+  newPasscode: string,
+  options?: { storePath?: string }
+): void {
+  const clean = newPasscode.trim();
+  if (!clean) return;
+
+  const store = readLocalStore(options?.storePath);
+  const current =
+    store.settingsByOwner[DEFAULT_OWNER_ID] ?? DEFAULT_PROJECT_SETTINGS;
+  store.settingsByOwner[DEFAULT_OWNER_ID] = {
+    ...current,
+    telegramPasscode: clean,
+    updatedAt: new Date().toISOString(),
+  };
+  writeLocalStore(store, options?.storePath);
+  process.env.TELEGRAM_BOT_PASSCODE = clean;
+}
+
 
 
 
